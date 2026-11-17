@@ -67,14 +67,20 @@ class ReleaseTests(unittest.TestCase):
     def test_local_private_files_cannot_enter_allowlist(self):
         with tempfile.TemporaryDirectory(dir=self.temp_root) as folder:
             root = Path(folder)
-            for name in ['private/secret.py', 'build/derived.cpp', 'data/career.fm',
-                         'src/tactics_ui/catalog.json', 'native/engine_compat_profile.h']:
+            private_files = {'private/secret.py', 'build/derived.cpp', 'data/career.fm',
+                             'src/tactics_ui/catalog.json', 'native/engine_compat_profile.h',
+                             'AGENTS.md', 'PRD.md', 'PROJECT_INDEX.md', 'docs/new-notes.md',
+                             'docs/tasks/unreviewed.md', 'docs/screenshots/README.md'}
+            for name in private_files:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('private', encoding='utf8')
             selected = {p.relative_to(root).as_posix() for p in source_files(root)}
-            self.assertFalse(any(name in selected for name in ['private/secret.py', 'build/derived.cpp',
-                             'data/career.fm', 'src/tactics_ui/catalog.json', 'native/engine_compat_profile.h']))
+            self.assertFalse(private_files & selected)
+            self.assertEqual({name for name in selected if name.endswith('.md')},
+                             {'README.md', 'README.en.md', 'CHANGELOG.md', 'CONTRIBUTING.md',
+                              'THIRD_PARTY_NOTICES.md', 'docs/DEVELOPMENT.md',
+                              'docs/SIMULATION_FIDELITY.md', 'docs/TROUBLESHOOTING.md'})
 
 
 if __name__ == '__main__':

@@ -1,4 +1,16 @@
-# 故障诊断
+# 故障诊断 · Troubleshooting
+
+## 新电脑安装与换机
+
+- 使用 Windows x64、完整的兼容 FM27 安装、Microsoft VC++ x64 运行库和 WebView2。桌面 EXE 自带 Python。
+- 在引擎设置选择本机的游戏目录，并在存档对战中重新定位原始存档。要保留旧实验和手工译名，请退出工具后复制整个数据目录，再在设置中选择迁移后的目录。重要草稿请先另存为工具 JSON。
+- 中国球员和外籍球员的中文名依赖存档姓名、游戏词库及用户导入的译名。缺少可靠匹配时显示原名。
+
+## Setup on another PC
+
+- Use Windows x64, a complete compatible FM27 installation, the Microsoft Visual C++ x64 runtime and WebView2. The desktop EXE includes Python.
+- Select the local game folder in Engine Settings and locate your career save again. To reuse experiments and imported names, quit the app, copy its data directory, and select the copy in Settings. Export important drafts as tactic JSON before moving.
+- Chinese player names use save data, game language resources and imported names. Players without a verified translation keep their original name.
 
 ## 暂不能模拟：关键接口或布局不匹配
 

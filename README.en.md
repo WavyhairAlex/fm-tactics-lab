@@ -48,9 +48,9 @@ Each batch uses a sequence of random seeds. When comparing a saved reference wit
 
 ## Download and launch
 
-The current source version is **v1114**. Download published desktop builds from [GitHub Releases](https://github.com/lqf0624/fm-tactics-lab/releases). Quit the previous app before launching an update.
+Download the unified Windows EXE from the [v1114 release](https://github.com/lqf0624/fm-tactics-lab/releases/tag/v1114). Quit the previous version before launching the update.
 
-Install FM27, open Steam and sign in to the account that owns the game, then launch the EXE. The tool looks for your installation automatically. You can also select the game root containing `fm_Data` and `shared` in the engine settings at the top.
+The verified Steam game build is `27.0.1+2503222`. For Steam, open the client and sign in to the account that owns the game. The app looks for the installation automatically. You can also select the game root containing `fm_Data` and `shared` in Engine Settings.
 
 The EXE includes its Python runtime. Players do not need Python or a compiler. The interface follows the Windows display language and supports Chinese and English. Source setup is described in the [developer guide](docs/DEVELOPMENT.md).
 
@@ -58,9 +58,9 @@ The EXE includes its Python runtime. Players do not need Python or a compiler. T
 
 Save-specific player identities, reliable Chinese names and current registered shirts now follow squad and season changes. Select managed clubs or clubs from the loaded top five leagues, including cross-league opponents. Clubs without saved tactics explicitly reuse the current board. Two-round tests keep screening and retest seeds/statistics separate, support A/B comparison and resume, and disable opposition/specific marking instructions on both sides.
 
-Coach references and preferences are validated. AI teams with unverifiable coaches are unavailable. The app also handles stale selection responses and temporary Windows summary-file locks. Chinese names fall back to the original name when no reliable translation exists. Full backup/restore remains planned. See [validation](docs/V1114_6_VALIDATION.md), [portability](docs/PORTABILITY.md) and [requirements](PRD.md) (Chinese).
+Coach references and preferences are validated. AI teams with unverifiable coaches are unavailable. The app also handles stale selection responses and temporary Windows summary-file locks. Chinese names fall back to the original name when no reliable translation exists.
 
-The app can use the existing `%LOCALAPPDATA%\FM27TacticsDesktop` data folder or a folder you choose at startup or in Settings. Steam native matches were validated. Epic adapter selection was checked in the unified package.
+The Tauri app uses pipes for backend requests. Its default data folder is `%LOCALAPPDATA%\FM27TacticsDesktop`. You can choose another folder at startup or in Settings. Steam native matches were validated. Epic installation detection and adapter selection were checked in the unified package.
 
 This build reads additional saved tactic, lineup and set-piece layouts. An unverifiable coach only affects the club in question. If your save previously failed to load, import it again after updating.
 

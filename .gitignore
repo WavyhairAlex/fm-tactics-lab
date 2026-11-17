@@ -10,6 +10,16 @@ __pycache__/
 /dist/
 /data/
 /data-epic/
+/AGENTS.md
+/PRD.md
+/PROJECT_INDEX.md
+/docs/tasks/
+/docs/LOCAL_BACKUP.md
+/docs/PORTABILITY.md
+/docs/RELEASE_CHECK.md
+/docs/RELEASE_NOTES.md
+/docs/V1114_6_VALIDATION.md
+/docs/screenshots/README.md
 *.exe
 *.dll
 *.pyd

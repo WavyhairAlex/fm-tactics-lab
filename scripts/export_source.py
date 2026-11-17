@@ -7,10 +7,12 @@ import re
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-TOP = {'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CONTRIBUTING.md',
-       'CHANGELOG.md', 'AGENTS.md', 'PRD.md', 'PROJECT_INDEX.md', 'requirements.txt', '.gitignore', '.gitattributes', 'Launcher.cs'}
+PUBLIC_DOCS = {'README.md', 'README.en.md', 'CHANGELOG.md', 'CONTRIBUTING.md',
+               'THIRD_PARTY_NOTICES.md', 'docs/DEVELOPMENT.md',
+               'docs/SIMULATION_FIDELITY.md', 'docs/TROUBLESHOOTING.md'}
+TOP = {'LICENSE', 'requirements.txt', '.gitignore', '.gitattributes', 'Launcher.cs'} | PUBLIC_DOCS
 TYPES = {'src': {'.py', '.js', '.css', '.html'},
-         'scripts': {'.py'}, 'tests': {'.py', '.cjs'}, 'docs': {'.md'},
+         'scripts': {'.py'}, 'tests': {'.py', '.cjs'},
          'native': {'.cpp', '.h', '.manifest'}, 'tauri/src': {'.rs'}}
 TAURI_FILES = {'tauri/.gitignore', 'tauri/Cargo.lock', 'tauri/Cargo.toml',
                'tauri/build.rs', 'tauri/tauri.conf.json'}

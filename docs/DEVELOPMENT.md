@@ -1,11 +1,11 @@
 # Building FM Tactics Lab v1114
 
-This source includes the career-save reader and same-league match mode shipped in v1108.5.
+This guide covers the v1114 source and its Windows desktop build.
 
 ## Requirements
 
 - Windows x64, full CPython 3.12 x64, MSVC C++17, the Windows SDK, Rust MSVC toolchain and WebView2.
-- A local FM27 installation; the adapter reference build is `27.0.0+2493426`.
+- A local FM27 installation. The [Steam adapter reference](../native/adapter_version.json) is `27.0.1+2503222`. The [Epic adapter](../native/epic_adapter_version.json) uses a separate reference DLL for FM27 `27.0.1`.
 - A verified v1108.5 EXE from this repository's Releases, used to supply the matching initial inputs.
 
 Install the save reader and its compression dependency from requirements.txt in the build environment.
@@ -38,7 +38,7 @@ The public repository contains range metadata and digests. The script reconstruc
 .venv\Scripts\python.exe scripts/run.py --game-root "D:\Games\Football Manager 27"
 ```
 
-Open the printed loopback URL after startup. Press `Ctrl+C` to stop the source edition.
+Open the printed loopback URL to run the development server. Press `Ctrl+C` to stop it. The packaged Tauri app uses pipes for backend requests.
 
 ## Build a local desktop EXE
 
@@ -57,6 +57,6 @@ The build script packages the save reader from the active Python environment. Th
 .venv\Scripts\python.exe scripts/export_source.py
 ```
 
-The exporter uses an explicit source allowlist, checks for workstation paths and common credential formats, and writes file digests inside the archive. It excludes game DLLs, runtime data, input snapshots and generated comparison bytes.
+The exporter uses the `PUBLIC_DOCS` list in [scripts/export_source.py](../scripts/export_source.py) to select individual Markdown files. Keep maintainer materials in local storage. The archive includes file digests and checks for workstation paths, common credential formats and generated comparison bytes.
 
 The EXE release is a separate asset authorized for distribution by the maintainer. Its embedded initial inputs and comparison data are outside the MIT grant for tool code. See [third-party notices](../THIRD_PARTY_NOTICES.md).

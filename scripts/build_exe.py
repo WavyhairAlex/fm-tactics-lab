@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--python-home', required=True, type=Path,
                         help='Full CPython 3.12 x64 distribution containing Lib and DLLs')
     parser.add_argument('--offline', action='store_true', help='Use cached Cargo dependencies')
+    parser.add_argument('--output', type=Path, help='Write a local build to this EXE path')
     args = parser.parse_args()
     engines = {}
     for platform in ('steam', 'epic'):
@@ -75,15 +76,17 @@ def main():
     if args.offline:
         command.append('--offline')
     subprocess.run(command, cwd=ROOT / 'tauri', check=True)
-    version = 'v1114'
-    exe = dist / f'FM27-Tactics-Lab-{version}.exe'
+    version = 'v1115'
+    exe = args.output.resolve() if args.output else dist / f'FM27-Tactics-Lab-{version}.exe'
+    exe.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(target / toolchain_target / 'release/fm27-tactics-lab.exe', exe)
     adapters = {platform: hashlib.sha256((engine / 'fm27_native/FM27Simulator.exe').read_bytes()).hexdigest()
                 for platform, engine in engines.items()}
     manifest = {'version': version, 'file': exe.name, 'bytes': exe.stat().st_size, 'transport': 'stdio',
                 'payload_sha256': hashlib.sha256(payload.read_bytes()).hexdigest(),
                 'native_adapters': adapters, 'sha256': hashlib.sha256(exe.read_bytes()).hexdigest()}
-    (dist / 'private-build.json').write_text(json.dumps(manifest, indent=2), encoding='utf8')
+    receipt = exe.with_suffix('.build.json') if args.output else dist / 'private-build.json'
+    receipt.write_text(json.dumps(manifest, indent=2), encoding='utf8')
     print(json.dumps(manifest, indent=2))
 
 

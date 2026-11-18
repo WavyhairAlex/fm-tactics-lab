@@ -7,6 +7,7 @@ import msvcrt
 import os
 from pathlib import Path
 import subprocess
+from xml.etree import ElementTree
 
 LEASES = []
 
@@ -37,6 +38,19 @@ def adapter_for(native, dll_sha256):
 def reference_matches(adapter, dll_sha256):
     profile = adapter/'engine_compat_profile.json'
     return profile.is_file() and json.loads(profile.read_text(encoding='utf8'))['reference_sha256'] == dll_sha256
+
+
+def xbox_installation(game, plugins):
+    manifest = game / 'MicrosoftGame.config'
+    if manifest.is_file():
+        try:
+            identities = ElementTree.parse(manifest).getroot().iter()
+            if any(entry.tag.rsplit('}', 1)[-1] == 'Identity'
+                   and entry.get('Name') == 'SportsInteractive.FootballManager27' for entry in identities):
+                return True
+        except (OSError, ElementTree.ParseError):
+            pass
+    return (plugins / 'PlayFabMultiplayerGDK.dll').is_file() and (plugins / 'XCurl.dll').is_file()
 
 
 def host_for(root, status):
@@ -80,6 +94,10 @@ def initialize(root, installation=None):
             'actual_dll_sha256':None,'resource_fingerprint':None,
             'whole_file_sha_is_admission_gate':False,'whole_engine_behavior_equivalence_proven':False}
     try:
+        if dll.is_file() and xbox_installation(game, plugins):
+            return {**status, 'adapter':'xbox_pc', 'actual_dll_sha256':sha(dll),
+                    'reason':'xbox_build_unverified',
+                    'message':'已识别 Xbox PC／Game Pass 安装。当前构建尚未通过原生比赛验证，请运行 XGP 诊断并提供日志。'}
         missing=[name for name,path in files.items() if not path.is_file()]
         if missing:
             return {**status,'reason':'missing_resources','missing_files':missing,
@@ -94,6 +112,8 @@ def initialize(root, installation=None):
         version_file = adapter/'adapter_version.json'
         adapter_version = json.loads(version_file.read_text(encoding='utf8')) if version_file.is_file() else {}
         status.update(adapter_version=adapter_version.get('version'), reference_dll_sha256=profile['reference_sha256'])
+        if adapter_version.get('tactic_version'):
+            status['tactic_version'] = adapter_version['tactic_version']
         executable = host_for(root, status)
         env = os.environ.copy()
         env['FM27_EXPECTED_DLL_SHA256'] = actual
@@ -131,6 +151,9 @@ def initialize(root, installation=None):
                 'reason':validation.get('reason'),
                 'message':'引擎关键接口检查通过' if verified else '此版本尚未验证，可试运行；每场仍须通过原生完赛、比分和统计校验。',
                 'diagnostics':rows,'diagnostic_error':diagnostic_error,
+                'match_importance_available':any(
+                    row.get('event')=='native_match_importance_capability' and row.get('supported') is True
+                    for row in rows),
                 'resource_fingerprint':fingerprint,
                 'original_build_verified':actual==profile['reference_sha256'],
                 'files':entries,'whole_engine_behavior_equivalence_proven':False}

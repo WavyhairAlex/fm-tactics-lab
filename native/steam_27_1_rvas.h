@@ -1,7 +1,7 @@
 #pragma once
 
-// Steam 27.1.0 locations for the shared native call sites.
-// Each target is covered by the generated compatibility contract.
+// 27.1.0 native call sites shared by the Steam and Epic reference builds.
+// Each storefront uses its own PE and startup compatibility contract.
 static constexpr uintptr_t steam_27_1_rva(uintptr_t rva) {
     switch (rva) {
     case 0x4d30: return 0x4f90;

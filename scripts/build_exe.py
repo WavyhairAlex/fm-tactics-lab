@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 
 from prepare_private import ASSETS
-from generate_profile import adapter_paths
+from generate_profile import ADAPTERS, adapter_paths
 from run import ROOT, check_inputs, stage_source
 
 
@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--output', type=Path, help='Write a local build to this EXE path')
     args = parser.parse_args()
     engines = {}
-    for platform in ('steam', 'epic'):
+    for platform in ADAPTERS:
         check_inputs(platform)
         _, engines[platform] = adapter_paths(platform)
     python = args.python_home.resolve()
@@ -67,7 +67,7 @@ def main():
         for name in ASSETS:
             archive.write(ROOT / 'private/engine' / name, 'engine/' + name)
         for platform, engine in engines.items():
-            target = 'engine/fm27_native' if platform == 'steam' else 'engine/fm27_native/epic'
+            target = 'engine/fm27_native' if platform == 'steam' else f'engine/fm27_native/{platform}'
             for name in ('FM27Simulator.exe', 'engine_compat_profile.json', 'adapter_version.json'):
                 archive.write(engine / 'fm27_native' / name, f'{target}/{name}')
     target = Path(os.environ.get('CARGO_TARGET_DIR', build / 'tauri-target')).resolve()
@@ -76,7 +76,7 @@ def main():
     if args.offline:
         command.append('--offline')
     subprocess.run(command, cwd=ROOT / 'tauri', check=True)
-    version = 'v1115'
+    version = 'v1118.1'
     exe = args.output.resolve() if args.output else dist / f'FM27-Tactics-Lab-{version}.exe'
     exe.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(target / toolchain_target / 'release/fm27-tactics-lab.exe', exe)

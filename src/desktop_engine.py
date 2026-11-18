@@ -29,9 +29,10 @@ def sha(path):
 
 
 def adapter_for(native, dll_sha256):
-    epic = native/'epic'
-    if reference_matches(epic, dll_sha256):
-        return 'epic', epic
+    for variant in ('epic_27_1', 'epic'):
+        adapter = native/variant
+        if reference_matches(adapter, dll_sha256):
+            return 'epic', adapter
     return 'steam', native
 
 
@@ -55,7 +56,10 @@ def xbox_installation(game, plugins):
 
 def host_for(root, status):
     native = root/'fm27_native'
-    return (native/'epic' if status.get('adapter') == 'epic' else native)/'FM27Simulator.exe'
+    if status.get('adapter') == 'epic':
+        variant = 'epic_27_1' if status.get('adapter_variant') == 'epic_27_1' else 'epic'
+        native = native/variant
+    return native/'FM27Simulator.exe'
 
 
 def lease(path):
@@ -108,13 +112,15 @@ def initialize(root, installation=None):
         platform, adapter = adapter_for(native, actual)
         status.update(adapter=platform, actual_dll_sha256=actual,
                       whole_file_sha_is_admission_gate=platform=='epic')
+        if platform == 'epic':
+            status['adapter_variant'] = adapter.name
         profile = json.loads((adapter/'engine_compat_profile.json').read_text(encoding='utf8'))
         version_file = adapter/'adapter_version.json'
         adapter_version = json.loads(version_file.read_text(encoding='utf8')) if version_file.is_file() else {}
         status.update(adapter_version=adapter_version.get('version'), reference_dll_sha256=profile['reference_sha256'])
         if adapter_version.get('tactic_version'):
             status['tactic_version'] = adapter_version['tactic_version']
-        executable = host_for(root, status)
+        executable = adapter/'FM27Simulator.exe'
         env = os.environ.copy()
         env['FM27_EXPECTED_DLL_SHA256'] = actual
         diagnostic_error=None

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1118.1 · 2026-11-18
+
+### 中文
+
+新增 Epic `27.1.0+2505117` 的原生适配，修复新版 Epic DLL 被送入 Steam 适配器后报 `PE_layout` 的问题。Steam 和 Epic 继续共用一个 EXE。已核对 Epic 样本的指纹、布局和接口，样本可加载。Epic 完赛仍待完整安装环境复测。Steam 27.1.0 已通过原生完赛复测。
+
+### English
+
+Adds a native adapter for Epic `27.1.0+2505117` and fixes the `PE_layout` error caused by selecting the Steam adapter for this Epic build. Steam and Epic still use one EXE. The supplied Epic DLL passed fingerprint and interface checks and loaded on Windows. A complete match on a full Epic installation still needs confirmation. Steam 27.1.0 passed a complete native match in regression testing.
+
 ## v1118 · 2026-11-18
 
 ### 中文

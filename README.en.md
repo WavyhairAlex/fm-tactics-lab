@@ -54,6 +54,10 @@ The verified Steam game build is `27.1.0+2505117`. For Steam, open the client an
 
 The EXE includes its Python runtime. Players do not need Python or a compiler. The interface follows the Windows display language and supports Chinese and English. Source setup is described in the [developer guide](docs/DEVELOPMENT.md).
 
+## v1118.1
+
+Adds a native adapter for Epic `27.1.0+2505117` and fixes the `PE_layout` error caused by selecting the Steam adapter for this Epic build. Steam and Epic still use one EXE. The supplied Epic DLL passed fingerprint and interface checks and loaded on Windows. A complete match on a full Epic installation still needs confirmation. Steam 27.1.0 passed a complete native match in regression testing.
+
 ## v1118
 
 Supports Steam FM27 `27.1.0+2505117`. Open Labs from the tactics board to test player roles, team instructions, player instructions, and attributes. The squad picker can select starters and substitutes based on ability and familiarity in both phases.

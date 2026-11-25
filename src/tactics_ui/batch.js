@@ -41,6 +41,38 @@ api('/api/status').then(status=>{
  };
 }).catch(e=>toast(e.message));
 
+const workerMode=$('#worker-mode'),workerBudget=$('#worker-budget');
+workerMode.value=localStorage.getItem('fm27-worker-mode')==='auto'?'auto':'manual';
+workerBudget.value=localStorage.getItem('fm27-worker-budget')||'';
+function showWorkerMode(){
+ const auto=workerMode.value==='auto';
+ $('#worker-count-label').hidden=auto;
+ $('#workers').disabled=auto;
+ $('#worker-budget-label').hidden=!auto;
+ workerBudget.disabled=!auto;
+}
+workerMode.onchange=()=>{
+ localStorage.setItem('fm27-worker-mode',workerMode.value);
+ showWorkerMode();
+};
+workerBudget.onchange=()=>{
+ if(workerBudget.checkValidity())localStorage.setItem('fm27-worker-budget',workerBudget.value);
+};
+showWorkerMode();
+
+function workerOptions(){
+ if(workerMode.value!=='auto')return {worker_mode:'manual'};
+ if(!workerBudget.checkValidity())throw Error('并行内存预算须为 1–1024 GiB 的整数');
+ return {worker_mode:'auto',worker_memory_limit_gib:workerBudget.value?Number(workerBudget.value):null};
+}
+const apiBeforeWorkers=api;
+const workerEndpoints=new Set(['/api/run','/api/save/run','/api/run-episodes',
+ '/api/run-attribute-screen','/api/run-tactical-screen','/api/resume','/api/jobs/retest']);
+api=async function(url,data){
+ if(data&&workerEndpoints.has(url))data={...data,...workerOptions()};
+ return apiBeforeWorkers(url,data);
+};
+
 const quickModeLabel=document.createElement('label');quickModeLabel.className='compare-toggle';
 quickModeLabel.title='整场比赛仅采集比分和球队统计；不采集或校验射手、助攻、红黄牌明细。定位球片段仍使用完整模式。仅影响新任务。';
 quickModeLabel.innerHTML='<input id="quick-score-mode" type="checkbox">快速模式（仅比分/统计）';

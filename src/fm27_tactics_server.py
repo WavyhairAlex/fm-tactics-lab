@@ -21,7 +21,8 @@ import threading
 import time
 from urllib.parse import urlparse,parse_qs
 from fm27_simulator import inspect_log
-from fm27_batch import BatchRunner, worker_limits, own_child_processes
+from fm27_batch import BatchRunner, automatic_workers, worker_limits, own_child_processes
+import desktop_experiment_context as experiment_context
 from desktop_warm_batch import DesktopWarmRunner, inspect_saved_run
 import fm27_setpieces as setpieces
 import fm27_phase_inputs as phase_inputs
@@ -49,6 +50,7 @@ EXECUTION_EXPERIMENT_DLLS = {
     '252ff8fb5b7a4a5a5464db6ba632e309eef9b6e65ffa992ae20575a189e66c6a',
     '8c6971ce0b1c8afe6529ea3f46205a5175aea988a97d7421a980da42e23fe340',
     'd12202dd01c3911d4c4e55e778f37b2251ffb10f9cf8cecc3b9ec08ece622c6b',
+    '4781439443abfb4b8197de03f1bed5b76063c862d014cfe01c5f54d83c9875ee',
 }
 EXECUTION_COMPONENTS = ('understanding', 'buy_in', 'opposition', 'ability')
 
@@ -443,6 +445,27 @@ def experiment_name(value, fallback):
         raise ValueError('实验名称须为1–100个可读字符')
     return value.strip()
 
+def new_experiment_name(data, base):
+    name = data.get('name')
+    if name is not None:
+        return {'name': experiment_name(name, base)}
+    return experiment_context.numbered_name(base, JOBS.values())
+
+
+def experiment_workers(data, default=None):
+    mode = data.get('worker_mode', 'manual')
+    if mode == 'auto':
+        budget = data.get('worker_memory_limit_gib')
+        if budget is not None:
+            budget = integer(budget, 1, 1024, '并行内存预算')
+        return automatic_workers(budget)
+    if mode != 'manual':
+        raise ValueError('并行模式无效')
+    limits = worker_limits()
+    return integer(data.get('workers', limits['recommended'] if default is None else default),
+                   1, limits['maximum'], '并行数')
+
+
 MAX_SAVE_OPPONENTS = 120
 MAX_ATTRIBUTE_MATCHES = 100000
 
@@ -479,7 +502,7 @@ def create_save_job(data):
     source=scenario['teams'][0].get('roster_source',{})
     if source!={'id':data['save_id'],'club_uid':own}:raise ValueError('己方阵容与所选存档或球队不一致，请重新载入')
     if reference and reference['teams'][0].get('roster_source')!=source:raise ValueError('对照须来自同一存档和球队，请重新设置对照')
-    workers=integer(data.get('workers',1),1,worker_limits()['maximum'],'并行数')
+    workers=experiment_workers(data, 1)
     event_details=data.get('event_details',True)
     if type(event_details)is not bool: raise ValueError('事件明细开关无效')
     with LOCK:
@@ -490,10 +513,12 @@ def create_save_job(data):
              'workers':workers,'completed':0,'total':len(selected)*match_count*(2 if reference else 1),
              'runs':[],'metrics':{},'failures':[],'active':[],'created':time.time(),
              'output_dir':str(directory),'_dir':directory,'_cancel':False,
-             'name':experiment_name(data.get('name'),f"{scenario['teams'][0]['name']} · {len(selected)}队"),
+             **new_experiment_name(data, scenario['teams'][0].get('tactic_name')),
              'experiment_type':'save_opponents','schedule':{},'variant_names':{},'team_names':{},
              'mode':'comparison'if reference else'single','event_details':event_details,'test_rounds':rounds,'seed_mode':seed_mode,
-             'match_conditions':experiment_conditions(scenario,reference)}
+             'match_conditions':experiment_conditions(scenario,reference),
+             'tactic_snapshots':{label:experiment_context.tactic_description(item)
+                                 for label,item in (('A',reference),('B',scenario)) if item is not None}}
         JOBS[key]=job;persist(job)
     def stage(text):
         with LOCK:
@@ -554,12 +579,15 @@ def create_save_job(data):
                 (directory/'provenance.json').write_text(json.dumps(provenance,ensure_ascii=False),encoding='utf8')
                 prepared={'batch_schema':1,'workers':workers,'failures':[],'active':[],'id':key,'status':'queued','completed':0,
                     'total':len(seeds)*len(variants),'runs':[],'metrics':{},'created':time.time(),'output_dir':str(directory),'_dir':directory,
-                    'name':experiment_name(data.get('name'),f"{scenario['teams'][0]['name']} · {len(selected)}队 · {count}场/队"),
                     'experiment_type':'save_opponents','schedule':schedule,'event_details':event_details,
                     'engine_compatibility':copy.deepcopy(ENGINE_COMPATIBILITY),'runtime_mode':'reused_native_worker','jobs_per_native_session':64,
                     'initial_state_policy':{'id':'controlled-start-v3','player_values':copy.deepcopy(profiles.CONTROLLED_START),'morale_verified':True,'cohesion_verified':True},
                     'mode':'comparison'if reference else'single','variant_names':{v:f"{schedule[v]['opponent']} · {'主场'if schedule[v]['venue']=='H'else'客场'} · {schedule[v]['group']}"for v,_ in variants},
-                    'team_names':{v:[t['name']for t in s['teams']]for v,s in variants}}
+                    'team_names':{v:[t['name']for t in s['teams']]for v,s in variants},
+                    'comparison_context':experiment_context.comparison_context(
+                        scenario, ENGINE_COMPATIBILITY, seeds, save=source['source_sha256'],
+                        opponents=[choice['key'] for choice in selected],
+                        rounds=rounds, fixture=provenance['fixture_sha256'])}
                 prepared['created']=job['created'];job.update(prepared);job['preparing']=False;job['stage']=None;persist(job)
             execute(job,variants,seeds)
         except CancelledError:
@@ -1181,7 +1209,7 @@ class TacticsApi:
         if path=='/api/catalog':return self.send(CATALOG)
         if path=='/api/defaults':return self.send(DEFAULT)
         if path=='/api/phase-defaults':return self.send(phase_inputs.pack(DEFAULT,CATALOG))
-        if path=='/api/status':return self.send({'engine':'original_native','engine_compatibility':ENGINE_COMPATIBILITY,'server_pid':os.getpid(),'application_version':'v1118.1','execution_available':execution_available(),'fmf_version_validation':'original_game_reader','fixture_me_version':'26.8.0.0','independent':True,'team_groups':len(GROUPS),'team_options':sum(len(g['options'])for g in GROUPS.values()),'player_groups':17,'roles':79,'batch':{'max_matches_per_variant':10000,**worker_limits(),'isolation':'bounded_reused_native_sessions','jobs_per_native_session':None,'session_policy':'remaining_batch_lane_when_supported','postprocess_workers':2,'whole_match_automatic_retries':0}})
+        if path=='/api/status':return self.send({'engine':'original_native','engine_compatibility':ENGINE_COMPATIBILITY,'server_pid':os.getpid(),'application_version':'v1125','execution_available':execution_available(),'fmf_version_validation':'original_game_reader','fixture_me_version':'26.8.0.0','independent':True,'team_groups':len(GROUPS),'team_options':sum(len(g['options'])for g in GROUPS.values()),'player_groups':17,'roles':79,'batch':{'max_matches_per_variant':10000,**worker_limits(),'isolation':'bounded_reused_native_sessions','jobs_per_native_session':None,'session_policy':'remaining_batch_lane_when_supported','postprocess_workers':2,'whole_match_automatic_retries':0}})
         if path=='/api/save/status':
             query=parse_qs(urlparse(self.path).query)
             try: return self.send(SAVE_LIBRARY.status(query.get('id',[None])[0]))
@@ -1231,6 +1259,9 @@ class TacticsApi:
                     delta=bool(progress and progress[0].isdigit()and int(progress[0])<=job['completed']and all('sequence'in r for r in job['runs']))
                     response={k:v for k,v in job.items()if not k.startswith('_')and(k!='runs'or not(unchanged or delta))};response['runs_unchanged']=unchanged
                     if delta and not unchanged:response['runs_delta']=[r for r in job['runs']if r['sequence']>int(progress[0])]
+                    if 'tactic_snapshots' not in response and not (job.get('attribute_screen') or job.get('tactical_screen')):
+                        if '_old_tactics' not in job:job['_old_tactics']=experiment_context.old_tactics(job)
+                        response['tactic_snapshots']=job['_old_tactics']
                     return self.send(copy.deepcopy(response))
                 if len(parts)==4 and parts[3]=='export':
                     package={'summary':copy.deepcopy({k:v for k,v in job.items() if not k.startswith('_')}),'scenarios':{}}
@@ -1272,6 +1303,8 @@ class TacticsApi:
                     provenance_source = provenance.get('save_source')
                     retest_fixture = {**spec,'group':'B'}
                     data = {'scenario':snapshot,'seeds':seeds,'workers':data.get('workers',1),
+                            'worker_mode':data.get('worker_mode','manual'),
+                            'worker_memory_limit_gib':data.get('worker_memory_limit_gib'),
                             'event_details':old.get('event_details',True),
                             'name':f"{spec['opponent']} · {'主场' if spec['venue']=='H' else '客场'}复测 · {count}场"}
                     path = '/api/run'
@@ -1414,7 +1447,7 @@ class TacticsApi:
                     seed_mode,seeds=match_seeds(data,seed_count)
                 else:
                     seed_mode,seeds=match_seeds(data)
-                workers=integer(data.get('workers',worker_limits()['recommended']),1,worker_limits()['maximum'],'并行数')
+                workers=experiment_workers(data)
                 if tactical_details is None:
                     variants=[('A',reference),('B',scenario)]if reference else[('B',scenario)]
                 screen_details=None
@@ -1467,7 +1500,11 @@ class TacticsApi:
                         provenance['configs']=copy.deepcopy(configs)
                     (directory/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf8')
                     job={'batch_schema':1,'workers':workers,'failures':[],'active':[],'id':key,'status':'queued','completed':0,'total':len(seeds)*len(variants),'runs':[],'metrics':{},'created':time.time(),'output_dir':str(directory),'_dir':directory,'seed_mode':seed_mode}
-                    job['name']=experiment_name(data.get('name'),f"{scenario['teams'][0]['name']} · {scenario['teams'][0].get('tactic_name') or '战术实验'} · {len(seeds)}场")
+                    tested_side=episode['tested_side'] if episode else (retest_fixture['tested_side'] if retest_fixture else 0)
+                    name_base=scenario['teams'][tested_side].get('tactic_name')
+                    if tactical_details is not None:name_base=tactical_analysis.LABELS[tactical_details['kind']]
+                    if screen_details is not None:name_base='属性实验室'
+                    job.update(new_experiment_name(data, name_base))
                     job['event_details']=event_details
                     job['match_conditions']=experiment_conditions(scenario,reference)
                     job['engine_compatibility']=copy.deepcopy(ENGINE_COMPATIBILITY)
@@ -1478,10 +1515,8 @@ class TacticsApi:
                     job['team_names']={label:[t['name']for t in item['teams']]for label,item in variants}
                     if tactical_details is not None:
                         job.update(experiment_type='tactical_screen', tactical_screen=tactical_details,total=total)
-                        job['name']=experiment_name(data.get('name'), tactical_analysis.LABELS[tactical_details['kind']])
                     if screen_details is not None:
                         job.update(experiment_type='attribute_screen',attribute_screen=copy.deepcopy(screen_details),total=total)
-                        job['name']=experiment_name(data.get('name'),scenario['teams'][screen_details['side']]['name']+' · 属性实验室')
                     if retest_fixture:
                         job.update(experiment_type='save_opponents',schedule={'B':retest_fixture},
                                    retest_source=retest_source)
@@ -1489,10 +1524,18 @@ class TacticsApi:
                     elif pool:
                         job['tactic_pool']={**pool_summary,'draws':{'total':len(pool_draws),'counts':{str(index):0 for index in range(len(pool['entries']))}}}
                         job['_pool_variants']=expanded;job['_pool_draws']={str(seed):index for seed,index in pool_draws.items()}
+                    if tactical_details is None and screen_details is None:
+                        job['tactic_snapshots']={label:experiment_context.tactic_description(
+                            item, tested_side, include_opponent=retest_fixture is None and not pool)
+                            for label,item in variants}
+                        if not episode and not retest_fixture:
+                            job['comparison_context']=experiment_context.comparison_context(
+                                scenario, ENGINE_COMPATIBILITY, seeds, pool_draws=pool_draws,
+                                fixture=provenance['fixture_sha256'])
                     JOBS[key]=job;persist(job);POOL.submit(execute,job,variants,seeds)
                     return self.send({'id':key},202)
             if path=='/api/resume':
-                workers=integer(data.get('workers',worker_limits()['recommended']),1,worker_limits()['maximum'],'并行数')
+                workers=experiment_workers(data)
                 with LOCK:
                     desktop_engine.require_available(ENGINE_COMPATIBILITY)
                     if any(j['status']in ('queued','running')for j in JOBS.values()):return self.send({'error':'已有比赛运行中'},409)
@@ -1524,6 +1567,7 @@ class Handler(BaseHTTPRequestHandler):
         'batch.js', 'style.css', 'save-mode.js', 'save-mode.css', 'engine-settings.js',
         'squad-editor.js', 'tactic-pool.js', 'tactic-library.js', 'i18n.js', 'i18n-en.js',
         'desktop-transport.js', 'league-testing.js', 'player-display.js', 'attribute-analysis.js', 'tactical-analysis.js',
+        'experiment-results.js',
     }
 
     def send(self, value, status=200, kind='application/json; charset=utf-8'):

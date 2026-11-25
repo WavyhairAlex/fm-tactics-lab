@@ -106,6 +106,7 @@ class SaveLibrary:
         self.real_active = None
         self._names = {}
         self.active = None
+        self.importing = None
 
     def folder(self, key):
         if not isinstance(key, str) or not re.fullmatch('[0-9a-f]{16}', key):
@@ -141,9 +142,14 @@ class SaveLibrary:
             key = secrets.token_hex(8)
             folder = self.root/key
             folder.mkdir()
-            self.active = key
+            self.write(folder/'selected_source.json', {'path':str(source)})
             self.write(folder/'progress.json', {'status':'reading','stage':'等待解析','id':key})
-            self.pool.submit(self.extract, source, folder, key)
+            self.active = self.importing = key
+            try:
+                self.pool.submit(self.extract, source, folder, key)
+            except BaseException:
+                self.active = self.importing = None
+                raise
         return {'id':key}
 
     def reusable_source(self, digest):
@@ -188,37 +194,44 @@ class SaveLibrary:
                     env=env,stdout=stdout,stderr=stderr,timeout=1800,creationflags=subprocess.CREATE_NO_WINDOW)
             if result.returncode:
                 raise ValueError(read(folder/'progress.json').get('stage','存档读取失败'))
-            # The index lists all retained cache candidates, not guessed club ownership.
-            self.write(folder/'progress.json', {'status':'complete','stage':'读取完成，可选择球队与方案','id':key})
-            self.write(self.root/'latest.json', {'id':key})
             if self.index_data(folder).get('save_mode') != 'online_draft':
                 desktop_recovery_sources.remember(self,source=source,imported=folder/'dataset.json')
+            self.write(folder/'progress.json', {'status':'complete','stage':'读取完成，可选择球队与方案','id':key})
+            self.write(self.root/'latest.json', {'id':key})
         except Exception as error:
             self.write(folder/'progress.json', {'status':'error','stage':str(error),'id':key})
         finally:
             with self.lock:
-                self.active = None
+                self.active = self.importing = None
 
     def status(self, key=None):
-        if not key:
-            key = self.active or (read(self.root/'latest.json')['id'] if (self.root/'latest.json').exists() else None)
-        if not key:
-            return {'status':'empty'}
-        folder = self.folder(key)
-        value = {**read(folder/'progress.json'),'id':key}
+        with self.lock:
+            if not key:
+                key = self.importing or (read(self.root/'latest.json')['id'] if (self.root/'latest.json').exists() else None)
+            if not key:
+                return {'status':'empty'}
+            folder = self.folder(key)
+            value = {**read(folder/'progress.json'),'id':key}
+            selected = folder/'selected_source.json'
+            if selected.exists():
+                value['source'] = read(selected)['path']
+            # The worker writes its result before the import has finished registering it.
+            if key == self.importing and value['status'] != 'reading':
+                value.update(status='reading', stage='正在完成存档读取')
+            elif key != self.importing and value['status'] == 'reading':
+                value.update(status='error', stage='上次读取存档中断，请重新读取。')
         if value['status'] != 'complete':
             return value
         data = dataset(folder/'dataset.json')
         if data.get('schema')!=5:raise ValueError('此存档缓存来自旧版本，请重新读取存档')
         if 'first_team_counts' not in data:raise ValueError('此缓存尚未区分一线队，请重新导入存档')
         counts = {int(k):v for k,v in data['first_team_counts'].items() if k!='None'}
-        value.update(date=data['date'],build=data['build'],source=data['source'],source_sha256=data['source_sha256'],
+        value.update(date=data['date'],build=data['build'],source=value.get('source',data['source']),source_sha256=data['source_sha256'],
                      save_mode=data.get('save_mode','career'),
                      managed=data['managed'],warnings=data['warnings'],cache_count=len(data['caches']),
                      clubs=[{'uid':c['uid'],'name':c.get('name') or c.get('short_name') or str(c['uid']),
                              'players':counts.get(c['uid'],0)} for c in data['clubs'] if counts.get(c['uid'],0)>=11 and c['uid'] in {m['club_uid']for m in data['managed']}])
         value.update(desktop_league_testing.catalog(self,key))
-        if (folder/'selected_source.json').exists():value['source']=read(folder/'selected_source.json')['path']
         return value
 
     def ensure_rosters(self, folder, clubs, cancelled=None):

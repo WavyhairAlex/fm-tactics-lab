@@ -76,7 +76,7 @@ def main():
     if args.offline:
         command.append('--offline')
     subprocess.run(command, cwd=ROOT / 'tauri', check=True)
-    version = 'v1118.1'
+    version = 'v1125'
     exe = args.output.resolve() if args.output else dist / f'FM27-Tactics-Lab-{version}.exe'
     exe.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(target / toolchain_target / 'release/fm27-tactics-lab.exe', exe)

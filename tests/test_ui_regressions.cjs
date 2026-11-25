@@ -6,6 +6,81 @@ const vm=require('node:vm');
 const ui=path.join(__dirname,'../src/tactics_ui');
 function fragment(file,start,end){const text=fs.readFileSync(path.join(ui,file),'utf8');return text.slice(text.indexOf(start),end?text.indexOf(end,text.indexOf(start)):undefined);}
 function context(values){return vm.createContext(values);}
+test('a saved reference follows the experiment mode across restarts',async()=>{
+ const legacy={teams:[{tactic_name:'Free tactic'}]};
+ const saveReference={teams:[{tactic_name:'Imported plan',roster_source:{id:'save',club_uid:1}}]};
+ const storage=new Map([['fm27-lab-reference-v1',JSON.stringify(legacy)],
+  ['fm27-career-original',JSON.stringify(saveReference.teams[0])]]);
+ const c=context({saveMode:'save',saveLoaded:{save_id:'save',club_uid:1},state:legacy,
+  localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value)},
+  restoreScenario:async value=>value,clone:structuredClone});
+ vm.runInContext(fragment('save-mode.js','function storeComparisonReference','function updateRunContext'),c);
+ assert.equal((await c.restoreComparisonReference()).teams[0].tactic_name,'Imported plan');
+ c.reference={teams:[{...saveReference.teams[0],tactic_name:'Custom A'}]};
+ c.storeComparisonReference();
+ assert.equal((await c.restoreComparisonReference()).teams[0].tactic_name,'Custom A');
+ c.saveMode='free';
+ assert.equal((await c.restoreComparisonReference()).teams[0].tactic_name,'Free tactic');
+ c.saveMode='save';c.reference=null;c.storeComparisonReference();
+ assert.equal(await c.restoreComparisonReference(),null);
+});
+test('result overview identifies both tactic snapshots and compares B with a compatible past experiment',()=>{
+ const metrics=(rate,conceded)=>({n:100,wins:40,draws:20,losses:40,win_rate:rate,
+  win_interval:[.30,.50],goals_for:1,goals_against:conceded,points:1.4});
+ const job=(id,created,settings,sample,rate,conceded)=>({id,created,name:id,status:'complete',
+  comparison_context:{settings,sample},metrics:{B:metrics(rate,conceded)}});
+ const now={...job('Now',5,'same','new',.432,.9), mode:'comparison',
+  tactic_snapshots:{A:{name:'Same FMF',strategy:'a'},B:{name:'Same FMF',strategy:'b'}}};
+ const same=job('Earlier',2,'same','old',.4,1.1);
+ const different=job('Different opponent',4,'other','new',.5,.8);
+ const c=context({history:[now,different,same],esc:String,fmt:x=>x.toFixed(2),pct:x=>(x*100).toFixed(1)+'%',
+  bind(){},isComparison:j=>j.mode==='comparison',careerResultScope:()=>null});
+ vm.runInContext(fragment('experiment-results.js','const historyBaselines','function openExperimentPicker'),c);
+ assert.equal(c.historyBaseline(now,c.history).id,'Earlier');
+ const html=c.experimentOverview(now);
+ assert.match(html,/对照 A.*Same FMF/s);
+ assert.match(html,/本次 B.*Same FMF/s);
+ assert.match(html,/同名，战术设置有改动/);
+ assert.match(html,/metric-delta up">\+3\.2 个百分点/);
+ assert.match(html,/metric-delta up">-0\.20/);
+ assert.match(html,/不同种子或对手抽样/);
+ assert.equal(c.historyBaseline(now,c.history,'Different opponent').id,'Different opponent');
+ assert.equal(c.historyBaseline(now,c.history,false),null);
+ assert.match(c.resultDelta(.1,.2,2,'',false,false),/neutral/);
+});
+test('late save status cannot overwrite a new import of the same cached save',async()=>{
+ let oldReply,rendered=0,loaded=0;
+ const c=context({saveMode:'save',saveReadGeneration:2,saveInfo:{id:'save'},saveTimer:0,saveClub:99,careerLeague:'',
+  clearTimeout(){},drawSaveMode(){rendered++},toast:assert.fail,careerClubs:()=>[{uid:7}],
+  readSaveClub(){loaded++;assert.equal(c.saveClub,7)},
+  api:()=>new Promise(resolve=>{oldReply=resolve})});
+ vm.runInContext(fragment('save-mode.js','async function pollSave()','function savedBench'),c);
+ const oldPoll=c.pollSave();
+ c.saveReadGeneration++;
+ c.saveInfo={id:'save',status:'reading'};
+ oldReply({status:'error',stage:'stale'});
+ await oldPoll;
+ assert.equal(c.saveInfo.status,'reading');
+ assert.equal(rendered,0);
+ c.api=async()=>({id:'save',status:'complete'});
+ await c.pollSave();
+ assert.equal(c.saveInfo.status,'complete');
+ assert.equal(rendered,1);
+ assert.equal(loaded,1);
+});
+test('a failed save status request restores the read control and keeps the source path',async()=>{
+ let seen;
+ let rendered=0;
+ const c=context({saveMode:'save',saveReadGeneration:2,saveInfo:{id:'saved',status:'reading',source:'career.fm'},
+  saveTimer:0,clearTimeout(){},drawSaveMode(){rendered++},toast:text=>seen=text,
+  api:async()=>{throw Error('Status failed')}});
+ vm.runInContext(fragment('save-mode.js','async function pollSave()','function savedBench'),c);
+ await c.pollSave();
+ assert.equal(c.saveInfo.status,'error');
+ assert.equal(c.saveInfo.source,'career.fm');
+ assert.equal(seen,'Status failed');
+ assert.equal(rendered,1);
+});
 test('automatic squad accounts for both shapes, current ability and reserve coverage',()=>{
  const c=context({});
  vm.runInContext(fragment('app.js','const POS_ATTR=','function autoLineup'),c);

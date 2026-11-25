@@ -32,9 +32,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('audit', type=Path, help='JSONL produced by FM27Simulator.exe --policy-audit')
     parser.add_argument('--catalog', type=Path, default=root / 'private/catalog.json')
+    parser.add_argument('--adapter', type=Path, default=root / 'native/adapter_version.json')
     args = parser.parse_args()
     catalog = json.loads(args.catalog.read_text(encoding='utf8'))
-    adapter = json.loads((root / 'native/adapter_version.json').read_text(encoding='utf8'))
+    adapter = json.loads(args.adapter.read_text(encoding='utf8'))
     events = [json.loads(line) for line in args.audit.read_text(encoding='utf8').splitlines()]
     update(catalog, events, adapter)
     args.catalog.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + '\n', encoding='utf8')

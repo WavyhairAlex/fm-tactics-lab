@@ -1,5 +1,19 @@
 # Changelog
 
+## v1125 · 2026-11-25
+
+- 适配 Steam FM27 `27.1.1+2511875` 的存档和原版比赛引擎。统一 Windows EXE 保留 Steam 27.1.0 和现有 Epic 适配，后端继续使用管道。
+- 修复多人类经理存档、部分大型存档的联赛识别，以及强制退出后遗留的存档读取任务。重新启动后仍可读取存档和接续未完成的实验。
+- 将胜率等结果移到结果页顶部，显示 A、B 当次使用的战术名，支持搜索历史实验和选择对照结果。兼容的历史对照显示胜率、场均进失球和积分变化。
+- 战术板可另存编辑过的战术为 FMF。未命名的实验按战术名和序号命名。新增自动并行和可选内存预算，继续支持手动设置并行数。
+- 保留角色、球队指令、个人指令和属性实验室，以及按双阶段位置熟练度和能力自动挑选阵容。
+
+- Support Steam FM27 `27.1.1+2511875` saves and the original match engine. The unified Windows EXE retains existing Steam 27.1.0 and Epic adapters and uses pipe-based backend communication.
+- Fix saves with multiple human managers, league discovery in some large saves, and imports left pending after a forced exit. The app can read saves again and resume unfinished experiments after restarting.
+- Put the summary first, show the A and B tactics used, and add searchable history with a selectable comparison result. Compatible comparisons show changes in win rate, goals per match, and points per match.
+- Save edited tactics as FMF. Unnamed experiments use the tactic name and a sequence number. Choose manual workers or automatic selection with an optional memory budget.
+- Retain the Role, Team Instruction, Player Instruction, and Attribute Labs, and squad auto-pick using player ability and positional familiarity in both tactical phases.
+
 ## v1118.1 · 2026-11-18
 
 ### 中文

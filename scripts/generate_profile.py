@@ -9,7 +9,7 @@ import struct
 from profile_header import header
 
 ROOT = Path(__file__).resolve().parents[1]
-ADAPTERS = ('steam', 'epic', 'epic_27_1')
+ADAPTERS = ('steam', 'steam_27_1_1', 'epic', 'epic_27_1')
 
 
 def pe_sections(raw):
@@ -64,7 +64,7 @@ def generate(dll, platform='steam'):
     prefix, engine = adapter_paths(platform)
     metadata = json.loads((ROOT / 'native' / (prefix + 'profile_metadata.json')).read_text(encoding='utf8'))
     profile = restore_profile(metadata, Path(dll).read_bytes())
-    digest_ranges = platform != 'steam'
+    digest_ranges = platform.startswith('epic')
     if digest_ranges:
         profile = metadata
     native = ROOT / 'private' / (prefix + 'native')

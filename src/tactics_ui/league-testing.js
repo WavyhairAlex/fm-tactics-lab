@@ -32,6 +32,7 @@ function clearCareerSelection(){
  clearTimeout(saveTimer);saveOpponentRequest++;
  saveRoster=null;saveLoaded=null;saveChosen.clear();saveOpponents=[];reference=null;
  localStorage.removeItem('fm27-career-original');
+ storeComparisonReference();
 }
 function careerRoundLeader(r,g){
  const entries=Object.entries(r.metrics).filter(([,m])=>m);

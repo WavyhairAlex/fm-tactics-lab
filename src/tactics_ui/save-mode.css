@@ -22,6 +22,24 @@
 .run-settings #match-settings-summary{max-inline-size:19rem;color:var(--muted)}
 .runbar .compare-toggle:has(#compare){flex-wrap:wrap}
 .run-comparison-summary{flex:1 0 100%;max-inline-size:16rem;overflow-wrap:anywhere}
+.tactic-snapshots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin:0 0 14px}
+.tactic-snapshot{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);background:var(--panel);padding:10px 14px;border-radius:8px;overflow-wrap:anywhere}
+.tactic-snapshot small,.tactic-snapshot span{font-size:12px}
+.tactic-snapshot small{color:var(--muted)}
+.history-compare{font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+.metric-delta{display:inline-block;font-size:12px;font-weight:600;letter-spacing:0;margin-inline:6px 0}
+.metric-delta.up{color:#8ed0af}
+.metric-delta.down{color:#ff9ba8}
+.metric-delta.neutral{color:var(--muted)}
+.experiment-picker{background:var(--panel,#22242d);color:var(--text,#eee);border:1px solid var(--line,#62606c);width:min(540px,92vw);max-width:92vw}
+.experiment-picker input,.experiment-picker-list{width:100%;margin-top:12px}
+.experiment-picker-list{display:grid;gap:5px;max-height:47vh;overflow:auto}
+.experiment-picker-list button{display:flex;align-items:baseline;justify-content:space-between;gap:12px;text-align:left;white-space:normal}
+.experiment-picker-list button.active,.experiment-picker-options button.active{border-color:#bb86ec}
+.experiment-picker-list small{color:var(--muted)}
+.experiment-picker-options{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.run-inputs #worker-budget{width:78px}
+.run-inputs label[hidden],.experiment-picker-list button[hidden]{display:none}
 #run-match-count{white-space:nowrap;font-weight:700}
 #run-match-count:empty{display:none}
 #workspace{padding-bottom:max(128px,calc(var(--runbar-height,0px) + 20px))}

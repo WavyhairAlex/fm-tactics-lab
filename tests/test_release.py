@@ -84,21 +84,22 @@ class ReleaseTests(unittest.TestCase):
                               'docs/SIMULATION_FIDELITY.md', 'docs/TROUBLESHOOTING.md'})
 
     @unittest.skipUnless(os.name == 'nt', 'desktop adapters use Win32')
-    def test_epic_builds_select_distinct_hosts(self):
+    def test_supported_builds_select_distinct_hosts(self):
         sys.path.insert(0, str(ROOT / 'src'))
         from desktop_engine import adapter_for, host_for
 
         with tempfile.TemporaryDirectory(dir=self.temp_root) as folder:
             root = Path(folder)
             native = root / 'fm27_native'
-            for variant in ('epic', 'epic_27_1'):
+            for variant, platform in (('epic', 'epic'), ('epic_27_1', 'epic'),
+                                      ('steam_27_1_1', 'steam')):
                 profile = ROOT / 'native' / f'{variant}_profile_metadata.json'
                 adapter = native / variant
                 adapter.mkdir(parents=True)
                 (adapter / 'engine_compat_profile.json').write_bytes(profile.read_bytes())
                 digest = json.loads(profile.read_text(encoding='utf8'))['reference_sha256']
-                self.assertEqual(adapter_for(native, digest), ('epic', adapter))
-                status = {'adapter': 'epic', 'adapter_variant': variant}
+                self.assertEqual(adapter_for(native, digest), (platform, adapter))
+                status = {'adapter': platform, 'adapter_variant': variant}
                 self.assertEqual(host_for(root, status), adapter / 'FM27Simulator.exe')
             self.assertEqual(adapter_for(native, '0' * 64), ('steam', native))
             self.assertEqual(host_for(root, {'adapter': 'epic'}), native / 'epic/FM27Simulator.exe')

@@ -10,6 +10,7 @@ import subprocess
 from xml.etree import ElementTree
 
 LEASES = []
+NATIVE_ADAPTER_VARIANTS = {'steam_27_1_1': 'steam', 'epic_27_1': 'epic', 'epic': 'epic'}
 
 
 def close_leases():
@@ -29,10 +30,10 @@ def sha(path):
 
 
 def adapter_for(native, dll_sha256):
-    for variant in ('epic_27_1', 'epic'):
+    for variant, platform in NATIVE_ADAPTER_VARIANTS.items():
         adapter = native/variant
         if reference_matches(adapter, dll_sha256):
-            return 'epic', adapter
+            return platform, adapter
     return 'steam', native
 
 
@@ -56,8 +57,8 @@ def xbox_installation(game, plugins):
 
 def host_for(root, status):
     native = root/'fm27_native'
-    if status.get('adapter') == 'epic':
-        variant = 'epic_27_1' if status.get('adapter_variant') == 'epic_27_1' else 'epic'
+    variant = status.get('adapter_variant', status.get('adapter'))
+    if NATIVE_ADAPTER_VARIANTS.get(variant) == status.get('adapter') and variant is not None:
         native = native/variant
     return native/'FM27Simulator.exe'
 
@@ -112,7 +113,7 @@ def initialize(root, installation=None):
         platform, adapter = adapter_for(native, actual)
         status.update(adapter=platform, actual_dll_sha256=actual,
                       whole_file_sha_is_admission_gate=platform=='epic')
-        if platform == 'epic':
+        if adapter != native:
             status['adapter_variant'] = adapter.name
         profile = json.loads((adapter/'engine_compat_profile.json').read_text(encoding='utf8'))
         version_file = adapter/'adapter_version.json'

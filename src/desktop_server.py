@@ -26,7 +26,7 @@ def epic_installations(manifests):
 
 
 def discover_game(native):
-    from desktop_engine import reference_matches, sha
+    from desktop_engine import adapter_for, reference_matches, sha
 
     relative = Path('steamapps/common/Football Manager 27')
     candidates = []
@@ -50,7 +50,8 @@ def discover_game(native):
         first = first or str(path)
         try:
             fingerprint = sha(plugin)
-            if reference_matches(native, fingerprint) or reference_matches(native/'epic', fingerprint):
+            _, adapter = adapter_for(native, fingerprint)
+            if reference_matches(adapter, fingerprint):
                 return str(path)
         except (OSError, ValueError, KeyError):
             continue

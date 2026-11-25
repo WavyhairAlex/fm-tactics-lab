@@ -24,7 +24,8 @@ static bool locate_match_importance(const fs::path& path){
     if(!image.open(path))return false;
     ImportanceLocation found;
     if constexpr(native_layout::steam_27_1){
-        constexpr unsigned entry=0xf2710, return_address=0xf01aa;
+        constexpr unsigned entry=native_layout::steam_27_1_1?0xfacc0:0xf2710;
+        constexpr unsigned return_address=native_layout::steam_27_1_1?0xf875a:0xf01aa;
         unsigned char prologue[sizeof(importance_prologue)]={}, suffix[sizeof(importance_caller_suffix)]={};
         unsigned char prefix[sizeof(importance_caller_prefix)]={};
         int32_t displacement=0;

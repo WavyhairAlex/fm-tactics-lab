@@ -9,7 +9,7 @@ toolbar=function(){
   const t=state.teams[s],teamLabel=singleTeam?'己方':s?'客队':'主队';
   const edit=singleTeam?'':`<button class="button small" data-edit-team="${s}">${s===side?'正在编辑':'编辑此队'}</button>`;
   const name=setpiece?t.setpieces.routines[spType].map(r=>r.name).join(' ／ '):t.tactic_name||'默认／手动设置';
-  const actions=setpiece?'<p class="tiny muted">下方编辑该球队的定位球。</p>':`<div class="team-load-actions"><button class="button" data-match-import="${s}">导入${teamLabel}比赛战术 FMF</button><button class="button small" data-match-export="${s}">导出${teamLabel}比赛战术 FMF</button></div><p class="tiny muted">已加载的比赛战术可继续修改；定位球在定位球页单独导入。</p>`;
+  const actions=setpiece?'<p class="tiny muted">下方编辑该球队的定位球。</p>':`<div class="team-load-actions"><button class="button" data-match-import="${s}">导入${teamLabel}比赛战术 FMF</button><button class="button" data-match-export="${s}">另存战术 FMF</button></div><p class="tiny muted">已加载的比赛战术可继续修改；定位球在定位球页单独导入。</p>`;
   return `<section class="team-load-card ${s===side?'editing':''}" data-loaded-team="${s}"><div class="team-load-heading"><span class="tag">${teamLabel}</span><b>${esc(t.name)}</b>${edit}</div><small>${esc(label)}</small><strong class="loaded-tactic-name">${esc(name)}</strong>${actions}${!singleTeam&&!setpiece?boardRosterControls(s):''}${!setpiece&&state.teams[s].players.some(p=>p.source_uid!=null)?rosterFileButton(s):''}</section>`;
  });
  return base+`<div class="team-load-grid${singleTeam?' single-team':''}">${cards.join('')}</div>`;
@@ -19,7 +19,7 @@ bind=function(){workspaceBindPrevious();
  bindBoardRosterControls();bindRosterFiles();
  $$('[data-edit-team]').forEach(b=>b.onclick=()=>{side=+b.dataset.editTeam;slot=player=0;render();});
  $$('[data-match-import]').forEach(b=>{b.disabled=matchImportBusy;b.onclick=()=>{matchImportSide=+b.dataset.matchImport;$('#match-file').click();};});
- $$('[data-match-export]').forEach(b=>b.onclick=async()=>{const target=+b.dataset.matchExport;try{b.disabled=true;b.textContent='写入并核验…';const result=await api('/api/export-fmf',{side:target,scenario:state});downloadBinary(result);toast(`${target?'客队':'主队'}比赛战术已导出`);}catch(e){toast(e.message);}finally{render();}});
+ $$('[data-match-export]').forEach(b=>b.onclick=async()=>{const target=+b.dataset.matchExport;try{b.disabled=true;b.textContent='写入并核验…';const result=await api('/api/export-fmf',{side:target,scenario:state});downloadBinary(result);}catch(e){toast(e.message);}finally{render();}});
 };
 $('#match-file').onchange=async e=>{
  const file=e.target.files[0],target=matchImportSide;if(!file)return;

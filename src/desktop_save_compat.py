@@ -1,6 +1,6 @@
 """Observed FM27 save layouts; extends exact registrations, never disables checks.
 
-Supported saves: 27.0.0+2486695, 27.0.0+2493426, 27.0.1+2494687, 27.0.1+2503222 and 27.1.0+2505117.
+Supported saves include the verified 27.0.x builds and both 27.1 Steam builds.
 The later builds use summary/game/humans/tactics schemas 31/47/24/26. Plan flag 2 also occurs
 in native standalone FMF plans, and does not change the slot layout.
 Nonempty counted secondary slot maps are walked without changing native bytes.
@@ -10,8 +10,14 @@ from dataclasses import replace
 from pathlib import Path
 import sys
 
-PROFILE = 'fm27-save-2486695-2505117-v12'
-LATER_BUILDS = ('27.0.0+2493426', '27.0.1+2494687', '27.0.1+2503222', '27.1.0+2505117')
+PROFILE = 'fm27-save-2486695-2511875-v15'
+TACTIC_REVISIONS = {
+    '27.0.1+2494687': b'\x00\x01\x00',
+    '27.0.1+2503222': b'\x00\x01\x00',
+    '27.1.0+2505117': b'\x01\x00\x00',
+    '27.1.1+2511875': b'\x01\x00\x01',
+}
+LATER_BUILDS = ('27.0.0+2493426', *TACTIC_REVISIONS)
 FRAME_DECOMPRESSED_CAP = 768 * 1024**2
 TOTAL_DECOMPRESSED_CAP = 1536 * 1024**2
 
@@ -21,7 +27,7 @@ def install():
     if vendor.is_dir() and str(vendor) not in sys.path:
         sys.path.insert(0, str(vendor))
     from fmsave import _layouts, _version
-    from fmsave._layouts import ClubTableLayout, GameInfoLayout, StaffLayout, TacticsLayout
+    from fmsave._layouts import ClubTableLayout, GameInfoLayout, HumansLayout, StaffLayout, TacticsLayout
     if getattr(_layouts,'_fm27_desktop_profile',None)==PROFILE:
         return
     _version.FM27_FRAME_DECOMPRESSED_CAP = FRAME_DECOMPRESSED_CAP
@@ -45,20 +51,20 @@ def install():
             layout=replace(layout,filename_count_offset_after_db_version=167)
         for build in LATER_BUILDS:
             later=layout
-            if isinstance(layout,ClubTableLayout) and build=='27.1.0+2505117':
+            if isinstance(layout,ClubTableLayout) and build.startswith('27.1.'):
                 # The full finance payload ends five bytes later in 27.1.
                 finance = layout.full_finance
                 tail = replace(finance[-1], lead_bytes=finance[-1].lead_bytes + 5)
                 later = replace(layout, full_finance=(*finance[:-1], tail))
-            if isinstance(layout,TacticsLayout) and not build.startswith('27.0.0+'):
-                # TAC revision 68 stores the minor and patch in two bytes.
-                minor_patch = b'\x01\x00' if build == '27.1.0+2505117' else b'\x00\x01'
+            if isinstance(layout,TacticsLayout) and build in TACTIC_REVISIONS:
+                # Match all three build bytes, separately from the plan flags.
+                revision = TACTIC_REVISIONS[build]
                 def signature(value):
-                    return value[:4]+minor_patch+value[6:]
+                    return value[:4] + revision + value[7:]
                 later=replace(layout,user_signature=signature(layout.user_signature),
                               preset_signature=signature(layout.preset_signature),
                               alternate_signature=signature(layout.alternate_signature))
-                if build == '27.1.0+2505117':
+                if build.startswith('27.1.'):
                     later = replace(later, routine_area_header_bytes=587)
             entries.append(replace(entry,build=build,layout=later))
     registered=tuple(entries)
@@ -72,6 +78,7 @@ def install():
     _install_staff_code_reader(tuple(e.layout for e in registered
                                     if isinstance(e.layout, StaffLayout)
                                     and e.build in ('27.0.0+2486695', *LATER_BUILDS)))
+    _install_calendar_reader()
     read_game_info_facts=_version.read_game_info_facts
 
     def read_registered_game_info(container, schemas, version, known_build):
@@ -85,7 +92,19 @@ def install():
 
     _version.read_game_info_facts=read_registered_game_info
     from desktop_save_draft import read_summary
+    from desktop_save_multiplayer import install_staff_reader, read_career_summary
+    install_staff_reader(tuple(entry.layout for entry in registered
+                               if isinstance(entry.layout, HumansLayout)
+                               and entry.schema == 24 and entry.build in LATER_BUILDS))
+    original_clock = _version.read_summary_clock
     original_summary = _version.read_summary_facts
+
+    def read_registered_clock(data, layout, version):
+        if version.build in LATER_BUILDS:
+            career = read_career_summary(data, layout, version.build)
+            if career is not None:
+                return career.clock
+        return original_clock(data, layout, version)
 
     def read_registered_summary(container):
         try:
@@ -96,8 +115,35 @@ def install():
                 raise
             return draft[0]
 
+    _version.read_summary_clock = read_registered_clock
     _version.read_summary_facts = read_registered_summary
     _layouts._fm27_desktop_profile=PROFILE
+
+
+def _install_calendar_reader():
+    from fmsave import _container, _context
+
+    decode_span = _context.SaveContext._build_span_records
+
+    def build_span_records(context):
+        info = context.info
+        if info.game != 'FM27' or info.game_date is None:
+            return decode_span(context)
+        index = context._container_index
+        limits = index.limits
+        # The named-entry total was checked when the save was opened. Its
+        # entries are not decompressed as part of this streamed calendar pass.
+        frames = _container.read_region_frames_bounded(
+            index, _context.SPAN_REGION,
+            maximum_compressed_bytes=limits.total_decompressed_cap,
+            maximum_compressed_frame_bytes=limits.frame_decompressed_cap,
+            maximum_frames=_container.MAX_FRAMES_PER_REGION,
+            maximum_decompressed_bytes=limits.total_decompressed_cap,
+            maximum_frame_output_bytes=limits.frame_decompressed_cap,
+        )
+        return _context.scan_span(frames, _context.find_span_layouts(info.build), info.game_date, info.file_name)
+
+    _context.SaveContext._build_span_records = build_span_records
 
 
 def _install_tactic_section_reader(layouts):

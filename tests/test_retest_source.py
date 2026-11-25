@@ -13,6 +13,9 @@ import unittest
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
+import sys
+sys.path.insert(0,str(ROOT/'src'))
+import desktop_experiment_context
 
 
 class RetestSourceTests(unittest.TestCase):
@@ -20,7 +23,8 @@ class RetestSourceTests(unittest.TestCase):
         tree=ast.parse((ROOT/'src/fm27_tactics_server.py').read_text('utf8'))
         handler=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='TacticsApi')
         method=next(n for n in handler.body if isinstance(n,ast.FunctionDef) and n.name=='post')
-        conditions=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='experiment_conditions')
+        helpers=[n for n in tree.body if isinstance(n,ast.FunctionDef)
+                 and n.name in ('experiment_conditions','experiment_workers','new_experiment_name')]
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);old_dir=root/'old';old_dir.mkdir()
             native=root/'native';(native/'fixtures').mkdir(parents=True)
@@ -42,10 +46,11 @@ class RetestSourceTests(unittest.TestCase):
                     ENGINE_COMPATIBILITY={'resource_fingerprint':'fixture'},ENGINE_DLL_SHA256='fixture',
                     secrets=SimpleNamespace(token_hex=lambda _:str(len(jobs))),RUNS=root/'runs',NATIVE=native,
                     datetime=datetime,phase_inputs=SimpleNamespace(pack=lambda s,_:s),CATALOG={},time=time,copy=copy,
-                    experiment_name=lambda n,f:n or f,profiles=SimpleNamespace(CONTROLLED_START={}),
+                    experiment_name=lambda n,f:n or f,experiment_context=desktop_experiment_context,
+                    profiles=SimpleNamespace(CONTROLLED_START={}),
                     persist=lambda job:(job['_dir']/'summary.json').write_text(json.dumps({k:v for k,v in job.items() if not k.startswith('_')}),encoding='utf8'),
                     POOL=SimpleNamespace(submit=lambda *_:None),execute=lambda *_:None)
-            exec(compile(ast.Module(body=[conditions,method],type_ignores=[]),'<do_POST>','exec'),ns)
+            exec(compile(ast.Module(body=[*helpers,method],type_ignores=[]),'<do_POST>','exec'),ns)
             for variant in variants:
                 with self.subTest(variant=variant):
                     request=SimpleNamespace(path='/api/jobs/retest',send=lambda data,status=200:(status,data))

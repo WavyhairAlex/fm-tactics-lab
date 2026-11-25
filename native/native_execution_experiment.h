@@ -138,9 +138,11 @@ static void execution_install(unsigned char* match){
    for(int value:execution_components[side])if(value>=0)desktop_finish_and_exit(244);
   }else if(c[Understanding]<0||c[BuyIn]<0||c[Opposition]<0)desktop_finish_and_exit(244);
  }
- const char* execution_image=native_layout::steam_27_1?
-    "d12202dd01c3911d4c4e55e778f37b2251ffb10f9cf8cecc3b9ec08ece622c6b":
-    "8c6971ce0b1c8afe6529ea3f46205a5175aea988a97d7421a980da42e23fe340";
+ constexpr const char* execution_image=native_layout::steam_27_1_1?
+    "4781439443abfb4b8197de03f1bed5b76063c862d014cfe01c5f54d83c9875ee":
+    native_layout::steam_27_1?
+        "d12202dd01c3911d4c4e55e778f37b2251ffb10f9cf8cecc3b9ec08ece622c6b":
+        "8c6971ce0b1c8afe6529ea3f46205a5175aea988a97d7421a980da42e23fe340";
  if(strcmp(native_image_sha256,execution_image))desktop_finish_and_exit(244);
  execution_active=true;
  for(unsigned side=0;side<2;side++)execution_teams[side]=*(unsigned char**)(match+0x15380+8*side);

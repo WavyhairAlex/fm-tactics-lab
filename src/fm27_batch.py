@@ -29,6 +29,35 @@ def worker_limits():
     return resource_limits(os.cpu_count()or 2,available)
 
 
+def automatic_workers(memory_limit_gib=None):
+    limit = worker_limits()['resource_suggested_maximum']
+    if memory_limit_gib is not None:
+        limit = min(limit, memory_limit_gib)
+    if os.name != 'nt' or limit == 1:
+        return limit
+    from ctypes.wintypes import FILETIME
+
+    def cpu_times():
+        idle, kernel, user = FILETIME(), FILETIME(), FILETIME()
+        if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+            return None
+        return tuple((item.dwHighDateTime << 32) | item.dwLowDateTime for item in (idle, kernel, user))
+
+    start = cpu_times()
+    if start is None:
+        return limit
+    time.sleep(.12)
+    end = cpu_times()
+    if end is None:
+        return limit
+    idle, kernel, user = (last - first for first, last in zip(start, end))
+    if kernel + user > 0:
+        idle_fraction = max(0, min(1, idle / (kernel + user)))
+        free_threads = int((os.cpu_count() or 2) * idle_fraction)
+        limit = min(limit, max(1, free_threads // 2))
+    return limit
+
+
 _owner_job=None
 _owner_job_pid=None
 _owner_job_lock=threading.Lock()

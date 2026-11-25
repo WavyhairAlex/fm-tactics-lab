@@ -1,5 +1,6 @@
 'use strict';
 let saveMode=localStorage.getItem('fm27-mode-value')||'free',saveInfo=null,saveClub=null,saveRoster=null,saveOpponents=[],saveChosen=new Set(),saveLoaded=null,saveTimer;
+let saveReadGeneration=0;
 const freeTeamSides=editableTeamSides;
 editableTeamSides=()=>saveMode==='save'?[0]:freeTeamSides();
 const modePanel=document.createElement('section');modePanel.className='card save-mode-panel';
@@ -102,14 +103,38 @@ $('#execution-enabled').onchange=()=>{
  updateMatchSettingsSummary();
 };
 function comparisonTacticName(scenario){
- return scenario?.teams?.[0]?.tactic_name||scenario?.teams?.[0]?.name||'当前战术';
+ return scenario?.teams?.[0]?.tactic_name||'手动战术';
+}
+function referenceIsImported(){
+ return saveMode==='save'&&!!reference&&localStorage.getItem('fm27-career-original')===JSON.stringify(reference.teams?.[0]);
 }
 function liveComparisonSummary(){
- if(!reference)return '对照 A：尚未保存';
- const original=localStorage.getItem('fm27-career-original');
- const imported=saveMode==='save'&&original===JSON.stringify(reference.teams?.[0]);
- const name='对照 A：'+(imported?'导入时的 ':'')+comparisonTacticName(reference);
- return $('#compare').checked?name+' · 本次 B：'+comparisonTacticName(state):name;
+ const current=(view==='results'?'下次 B：':'本次 B：')+comparisonTacticName(state);
+ if(!reference)return current+' · 对照 A 尚未保存';
+ const origin=referenceIsImported()?' · 存档导入时':'';
+ return current+' · 对照 A：'+comparisonTacticName(reference)+origin+($('#compare').checked?'':'（未启用）');
+}
+function storeComparisonReference(){
+ localStorage.setItem('fm27-mode-reference-'+saveMode,JSON.stringify(reference));
+}
+async function restoreComparisonReference(){
+ const stored=localStorage.getItem('fm27-mode-reference-'+saveMode);
+ if(stored!==null){
+  const saved=JSON.parse(stored);
+  return saved?await restoreScenario(saved):null;
+ }
+ const legacy=JSON.parse(localStorage.getItem('fm27-lab-reference-v1'));
+ if(saveMode==='free')return legacy?await restoreScenario(legacy):null;
+ const source=legacy?.teams?.[0]?.roster_source;
+ if(source&&source.id===saveLoaded?.save_id&&source.club_uid===saveLoaded?.club_uid)
+  return restoreScenario(legacy);
+ const original=JSON.parse(localStorage.getItem('fm27-career-original'));
+ const binding=original?.roster_source;
+ if(binding&&binding.id===saveLoaded?.save_id&&binding.club_uid===saveLoaded?.club_uid){
+  const snapshot=clone(state);snapshot.teams[0]=original;
+  return restoreScenario(snapshot);
+ }
+ return null;
 }
 function updateRunContext(){
  const history=view==='results';
@@ -121,10 +146,17 @@ function updateRunContext(){
  updateSaveTotal();
 }
 function saveModeDraft(){if(state)localStorage.setItem('fm27-mode-draft-'+saveMode,JSON.stringify(state));}
+function rememberCareerContext(){
+ try{
+  localStorage.setItem('fm27-career-context',JSON.stringify({id:saveInfo?.id,source:saveInfo?.source,
+   club:saveClub,loaded:saveLoaded,opponents:saveOpponents,chosen:[...saveChosen],
+   league:careerLeague,two_rounds:careerTwoRounds,retest_count:careerRetest}));
+ }catch(_){}
+}
 function setSaveMode(value){
  if(activeJob){toast('请先等待当前实验结束或取消');return;}
  clearTimeout(saveTimer);
- saveModeDraft();localStorage.setItem('fm27-mode-reference-'+saveMode,JSON.stringify(reference));saveMode=value;
+ saveModeDraft();storeComparisonReference();saveMode=value;
  localStorage.setItem('fm27-mode-value',value);
  try{const draft=JSON.parse(localStorage.getItem('fm27-mode-draft-'+value));if(draft)state=draft;}catch(e){toast('模式草稿读取失败');}
  try{reference=JSON.parse(localStorage.getItem('fm27-mode-reference-'+value))||null;}catch(e){reference=null;}
@@ -137,7 +169,23 @@ function drawSaveMode(){
  modePanel.innerHTML=`<div class="save-mode-top"><div class="segmented"><button data-mode="free" class="${saveMode==='free'?'active':''}">自由推演</button><button data-mode="save" class="${saveMode==='save'?'active':''}">存档对战</button></div>${saveMode==='save'?'<span class="tiny muted">真实属性 · 两阶段战术 · 多对手主客场测试</span>':''}</div>${saveMode==='save'?`<div class="save-mode-body"><label>存档完整路径<input id="career-path" value="${esc(saveInfo?.source||'')}" placeholder="例如 D:\\存档\\生涯.fm"></label><button id="career-pick" class="button">选择存档…</button><button id="career-read" class="button" ${status==='reading'?'disabled':''}>读取存档</button><span class="tiny" role="status">${esc(saveInfo?.stage||'请选择 .fm 存档；战术 FMF 仍在战术板导入')}</span>${status==='complete'?`<p class="tiny muted">存档日期 ${esc(saveInfo.date)} · 构建 ${esc(saveInfo.build)} · 当前存档属性与教练偏好</p><div class="save-team-controls">${careerLeagueControls()}<label>测试球队<select id="career-club">${careerClubs().map(c=>`<option value="${c.uid}" ${c.uid===saveClub?'selected':''}>${esc(c.name)}${c.players!=null?'（'+c.players+'人）':' · 名单按需读取'}${saveInfo.managed.some(m=>m.club_uid===c.uid)?' · 人类经理执教':''}</option>`).join('')}</select></label>${saveRoster?`<label>存储战术<select id="career-tactic">${saveRoster.tactics.filter(t=>t.available).map(t=>`<option value="${t.index}">${esc(t.name)}</option>`).join('')}</select></label><button id="career-load" class="button primary" ${saveRoster.tactics.some(t=>t.available)?'':'disabled'}>载入战术板</button><button id="career-lineup-open" class="button">一线队／比赛名单</button>`:''}${saveLoaded?'<button id="league-round" class="button primary">跑一圈联赛</button>':''}<button id="career-opponents" class="button">选择存档对手</button></div>${saveLoaded?`<p class="tiny">已载入：${esc(state?.teams[0]?.name||'')} · ${esc(saveLoaded.tactic_name)} <button id="career-restore" class="button small">恢复导入方案</button></p><p class="tiny muted">${esc(saveLoaded.notice)}</p>`:''}${saveInfo.warnings?.length?`<details><summary>解析提示（${saveInfo.warnings.length}）</summary>${saveInfo.warnings.map(w=>`<p class="tiny">${esc(w)}</p>`).join('')}</details>`:''}<p class="tiny">已选 ${saveChosen.size} 个对手方案。对手使用所选的存档方案。</p>`:''}</div>`:''}`;
  modePanel.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setSaveMode(b.dataset.mode));
  if($('#career-pick'))$('#career-pick').onclick=async()=>{try{const r=await api('/api/save/pick',{});if(r.path){$('#career-path').value=r.path;$('#career-read').click();}}catch(e){toast(e.message)}};
- const readButton=$('#career-read');if(readButton)readButton.onclick=async()=>{try{const r=await api('/api/save/import',{path:$('#career-path').value});clearCareerSelection();careerLeague='';saveInfo={id:r.id,status:'reading',stage:r.reused?'存档未变化，复用已解析数据':'正在读取存档',source:$('#career-path').value};if(r.reused)toast('存档未变化，已复用解析结果与对手预设');drawSaveMode();pollSave();}catch(e){toast(e.message)}};
+ const readButton=$('#career-read');if(readButton)readButton.onclick=async()=>{
+  const path=$('#career-path').value;
+  readButton.disabled=true;
+  try{
+   const r=await api('/api/save/import',{path});
+   saveReadGeneration++;
+   if(saveInfo?.id!==r.id)saveClub=null;
+   clearCareerSelection();
+   careerLeague='';
+   saveInfo={id:r.id,status:'reading',stage:r.reused?'存档未变化，复用已解析数据':'正在读取存档',source:path};
+   rememberCareerContext();
+   if(r.reused)toast('存档未变化，已复用解析结果与对手预设');
+   drawSaveMode();
+   if(saveMode==='save')pollSave();
+  }catch(e){toast(e.message);}
+  finally{readButton.disabled=false;}
+ };
  if($('#career-club'))$('#career-club').onchange=async e=>{if(activeJob){e.target.value=saveClub;return toast('请等待当前实验结束');}saveClub=+e.target.value;clearCareerSelection();drawSaveMode();await readSaveClub();};
  if($('#league-round'))$('#league-round').onclick=previewLeagueRound;
  if($('#career-load'))$('#career-load').onclick=loadSaveTeam;
@@ -157,7 +205,33 @@ function updateSaveTotal(){
  runMatchCount.textContent=valid&&opponents?`预计 ${opponents*(count+(career&&careerTwoRounds?careerRetest:0))*($('#compare').checked?2:1)} 场`:'';
 }
 $('#count').addEventListener('input',updateSaveTotal);$('#compare').addEventListener('change',updateSaveTotal);
-async function pollSave(){clearTimeout(saveTimer);try{const requested=saveInfo?.id;const value=await api('/api/save/status'+(saveInfo?.id?'?id='+saveInfo.id:''));if(saveMode!=='save'||saveInfo?.id!==requested)return;saveInfo={...saveInfo,...value};if(careerLeague&&!value.leagues?.some(l=>l.key===careerLeague))careerLeague='';drawSaveMode();if(value.status==='reading')saveTimer=setTimeout(pollSave,1500);else if(value.status==='complete'){saveClub=careerClubs().some(c=>c.uid===saveClub)?saveClub:(careerClubs()[0]?.uid??null);if(saveClub!==null)await readSaveClub();else{saveRoster=null;drawSaveMode();toast('当前存档未找到可载入的五大联赛或执教球队');}}else if(value.status==='error')toast(value.stage);}catch(e){toast(e.message);}}
+async function pollSave(){
+ clearTimeout(saveTimer);
+ const requested=saveInfo?.id,generation=saveReadGeneration;
+ const current=()=>saveMode==='save'&&saveReadGeneration===generation&&saveInfo?.id===requested;
+ try{
+  const value=await api('/api/save/status'+(requested?'?id='+requested:''));
+  if(!current())return;
+  saveInfo={...saveInfo,...value};
+  if(careerLeague&&!value.leagues?.some(l=>l.key===careerLeague))careerLeague='';
+  if(value.status==='complete'){
+   const clubs=careerClubs();
+   if(!clubs.some(c=>c.uid===saveClub))saveClub=clubs[0]?.uid??null;
+   if(saveClub===null)saveRoster=null;
+  }
+  drawSaveMode();
+  if(value.status==='reading')saveTimer=setTimeout(pollSave,1500);
+  else if(value.status==='complete'){
+   if(saveClub!==null)await readSaveClub();
+   else toast('当前存档未找到可载入的五大联赛或执教球队');
+  }else if(value.status==='error')toast(value.stage);
+ }catch(e){
+  if(!current())return;
+  saveInfo={...saveInfo,status:'error',stage:e.message};
+  drawSaveMode();
+  toast(e.message);
+ }
+}
 function savedBench(roster){
  const known=new Set(roster.players.map(p=>p.uid));
  const starters=new Set(roster.selections.filter(p=>!p.substitute).map(p=>p.source_uid));
@@ -165,10 +239,11 @@ function savedBench(roster){
   .map(p=>p.source_uid).filter(uid=>known.has(uid)&&!starters.has(uid)))].slice(0,12);
 }
 async function readSaveClub(){
- const id=saveInfo.id,club=saveClub;
+ const id=saveInfo.id,club=saveClub,generation=saveReadGeneration;
+ const current=()=>saveMode==='save'&&saveReadGeneration===generation&&saveInfo?.id===id&&saveClub===club;
  try{
   const roster=await api('/api/save/club',{id,club_uid:club});
-  if(saveMode!=='save'||saveInfo?.id!==id||saveClub!==club)return;
+  if(!current())return;
   roster.bench=savedBench(roster);
   const known=new Set(roster.players.map(p=>p.uid));
   const starts=roster.selections.filter(s=>!s.substitute&&known.has(s.source_uid));
@@ -182,8 +257,8 @@ async function readSaveClub(){
   roster.picks=picks.slice();roster.manualSelection=false;
   saveRoster=roster;drawSaveMode();
   await initializeBoardRoster();
-  if(saveMode==='save'&&saveInfo?.id===id&&saveClub===club&&state)render();
- }catch(e){if(saveInfo?.id===id&&saveClub===club)toast(e.message);}
+  if(current()&&state)render();
+ }catch(e){if(current())toast(e.message);}
 }
 async function loadSaveTeam(){
  try{
@@ -199,6 +274,7 @@ async function loadSaveTeam(){
   if(saveMode!=='save'||saveInfo?.id!==id||saveClub!==club)return;
   state=r.scenario;reference=clone(state);saveLoaded=r.source;
   localStorage.setItem('fm27-career-original',JSON.stringify(state.teams[0]));
+  storeComparisonReference();
   save();saveModeDraft();
   side=slot=player=0;
   view='tactics';
@@ -395,7 +471,7 @@ resultsView=function(){
  const j=selectedJob;
  const mainScope=careerResultScope(j);
  const totalScope=careerResultScope(j,true);
- if(mainScope)html=careerRoundResults(j)+`<h3 class="result-round-scope">主统计 · ${mainScope}</h3>`+html;
+ if(mainScope)html=careerRoundResults(j)+html;
  if(j.experimental_execution){
   const row=j.runs[j.detailIndex??Math.max(0,j.runs.length-1)];
   const variant=row?.variant??Object.keys(j.experimental_execution)[0];
@@ -424,7 +500,12 @@ resultsView=function(){
  }
  if(j.experiment_type==='save_opponents')html=careerVenueSummary(j)+html;
  const busy=['queued','running'].includes(j.status);
- return `<div class="card experiment-heading"><h2>${esc(j.name||'实验 '+j.id)}</h2><button class="button small" id="rename-experiment">重命名</button><button class="button small" id="delete-experiment" ${busy?'disabled title="请等待实验结束或取消后再删除"':''}>删除实验</button><label>查找实验<input id="find-experiment" placeholder="按名称搜索"></label><p class="experiment-conditions"><strong>本次实验设置</strong> · ${esc(historicalConditions(j))}</p></div>${saveEventLeaderboards(j)}${html}`;
+ return `<div class="card experiment-heading"><h2 translate="no">${esc(j.name||j.id)}</h2>
+  <button class="button small" id="open-experiment-history">历史实验</button>
+  <button class="button small" id="rename-experiment">重命名</button>
+  <button class="button small" id="delete-experiment" ${busy?'disabled title="请等待实验结束或取消后再删除"':''}>删除实验</button>
+ </div>${experimentOverview(j)}<p class="experiment-conditions tiny muted"><strong>本次实验设置</strong> · ${esc(historicalConditions(j))}</p>
+ ${html}${saveEventLeaderboards(j)}`;
 };
 async function deleteExperiment(button){
  const {id,name}=selectedJob;
@@ -456,18 +537,16 @@ const saveBindPrevious=bind;
 bind=function(){saveBindPrevious();updateRunContext();
  if($('#lineup-player'))[...$('#lineup-player').options].forEach(o=>o.disabled=Number(o.value)>=team().roster_size);
  if($('#sp-strategy')&&view==='setpieces'){const select=$('#sp-strategy'),value=spCurrent().strategy;if(![...select.options].some(o=>+o.value===value)){select.add(new Option('原版存储策略（代码 '+value+'）',value));select.value=value;}}
- $$('[data-job]').forEach(b=>{const h=history.find(h=>h.id===b.dataset.job);if(h){b.textContent=(h.name||'实验 '+h.id)+' · '+h.completed+'/'+h.total;b.title=new Date(h.created*1000).toLocaleString(window.FM27I18n.language);}});
  if($('#rename-experiment'))$('#rename-experiment').onclick=async()=>{const name=prompt('实验名称（1–100字）',selectedJob.name||'');if(name===null)return;try{const r=await api('/api/jobs/rename',{id:selectedJob.id,name});selectedJob.name=r.name;const h=history.find(h=>h.id===r.id);if(h)h.name=r.name;if(polledJob?.id===r.id)polledJob.name=r.name;render();}catch(e){toast(e.message)}};
  if($('#delete-experiment'))$('#delete-experiment').onclick=e=>deleteExperiment(e.currentTarget);
  if($('[data-retry-save-leaderboards]'))$('[data-retry-save-leaderboards]').onclick=()=>{
   saveLeaderboardCache.delete(selectedJob.id+':'+selectedJob.completed);render();
  };
- if($('#find-experiment'))$('#find-experiment').oninput=e=>$$('[data-job]').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(e.target.value.toLowerCase()));
 };
 drawSaveMode();
-window.addEventListener('pagehide',()=>{saveModeDraft();localStorage.setItem('fm27-career-context',JSON.stringify({id:saveInfo?.id,club:saveClub,loaded:saveLoaded,opponents:saveOpponents,chosen:[...saveChosen],league:careerLeague,two_rounds:careerTwoRounds,retest_count:careerRetest}));});
+window.addEventListener('pagehide',()=>{rememberCareerContext();saveModeDraft();});
 if(saveMode==='save'){
- try{const context=JSON.parse(localStorage.getItem('fm27-career-context'));if(context?.id){saveInfo={id:context.id};saveClub=context.club;careerLeague=context.league||'';careerTwoRounds=context.two_rounds!==false;careerRetest=context.retest_count||100;saveLoaded=context.loaded;saveOpponents=context.opponents||[];saveChosen=new Set(context.chosen||[]);}}catch(e){}
+ try{const context=JSON.parse(localStorage.getItem('fm27-career-context'));if(context?.id){saveInfo={id:context.id,source:context.source};saveClub=context.club;careerLeague=context.league||'';careerTwoRounds=context.two_rounds!==false;careerRetest=context.retest_count||100;saveLoaded=context.loaded;saveOpponents=context.opponents||[];saveChosen=new Set(context.chosen||[]);}}catch(e){}
  pollSave();
 }
 

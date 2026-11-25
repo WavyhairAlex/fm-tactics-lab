@@ -48,31 +48,20 @@ Each batch uses a sequence of random seeds. When comparing a saved reference wit
 
 ## Download and launch
 
-Download the unified Windows EXE from the [v1118 release](https://github.com/lqf0624/fm-tactics-lab/releases/tag/v1118). Quit the previous version before launching the update.
+Download the unified Windows EXE from [GitHub Releases](https://github.com/lqf0624/fm-tactics-lab/releases). Quit the previous version before launching the update, then read your save again in Save Matchups.
 
-The verified Steam game build is `27.1.0+2505117`. For Steam, open the client and sign in to the account that owns the game. The app looks for the installation automatically. You can also select the game root containing `fm_Data` and `shared` in Engine Settings.
+The latest verified Steam build is `27.1.1+2511875`. For Steam, open the client and sign in to the account that owns the game. The app looks for the installation automatically. You can also select the game root containing `fm_Data` and `shared` in Engine Settings.
 
 The EXE includes its Python runtime. Players do not need Python or a compiler. The interface follows the Windows display language and supports Chinese and English. Source setup is described in the [developer guide](docs/DEVELOPMENT.md).
 
-## v1118.1
+## v1125
 
-Adds a native adapter for Epic `27.1.0+2505117` and fixes the `PE_layout` error caused by selecting the Steam adapter for this Epic build. Steam and Epic still use one EXE. The supplied Epic DLL passed fingerprint and interface checks and loaded on Windows. A complete match on a full Epic installation still needs confirmation. Steam 27.1.0 passed a complete native match in regression testing.
+- Support Steam FM27 `27.1.1+2511875` saves and the original match engine. The unified EXE retains the Steam 27.1.0 and existing Epic adapters.
+- Fix club selection in careers with multiple human managers, league discovery in some large saves, and save imports left pending after the app is forcibly closed.
+- Show the result summary first and display the exact tactics used for A and B. Search previous experiments by name or choose a past result to compare win rate, goals, and points per match.
+- Save edited tactics as FMF from the board. Automatic parallel mode chooses a worker count when a batch starts using available resources and an optional memory budget. Manual selection remains available.
 
-## v1118
-
-Supports Steam FM27 `27.1.0+2505117`. Open Labs from the tactics board to test player roles, team instructions, player instructions, and attributes. The squad picker can select starters and substitutes based on ability and familiarity in both phases.
-
-See the [v1118 release notes](https://github.com/lqf0624/fm-tactics-lab/releases/tag/v1118) for the full changes.
-
-## v1114
-
-Save-specific player identities, reliable Chinese names and current registered shirts now follow squad and season changes. Select managed clubs or clubs from the loaded top five leagues, including cross-league opponents. Clubs without saved tactics explicitly reuse the current board. Two-round tests keep screening and retest seeds/statistics separate, support A/B comparison and resume, and disable opposition/specific marking instructions on both sides.
-
-Coach references and preferences are validated. AI teams with unverifiable coaches are unavailable. The app also handles stale selection responses and temporary Windows summary-file locks. Chinese names fall back to the original name when no reliable translation exists.
-
-The Tauri app uses pipes for backend requests. Its default data folder is `%LOCALAPPDATA%\FM27TacticsDesktop`. You can choose another folder at startup or in Settings. Steam native matches were validated. Epic installation detection and adapter selection were checked in the unified package.
-
-This build reads additional saved tactic, lineup and set-piece layouts. An unverifiable coach only affects the club in question. If your save previously failed to load, import it again after updating.
+The Tauri app uses pipes for backend requests. Its default data folder is `%LOCALAPPDATA%\FM27TacticsDesktop`. You can choose another folder at startup or in Settings.
 
 Open **Attribute Lab** from the tactics board to test individual attribute increases for selected starters. It pairs matches on the same seeds and uses a fresh seed set to validate shortlisted changes. In career-save mode, open **Select save opponents** inside Attribute Lab to filter clubs by league and mix up to 120 available opponents from the five major leagues in one batch. In Free Simulation, use the current opponent or the away tactic pool. Compare xG difference and effect per attribute point, then export an HTML report. The role-attribute research originated in [PR #18](https://github.com/lqf0624/fm-tactics-lab/pull/18).
 
@@ -178,7 +167,7 @@ The random away tactic pool can be combined with experimental tactical execution
 
 ## Version and project information
 
-The current source version is **v1118**, for Windows x64. The adapter reference build is `27.1.0+2505117`. Tool code is licensed under MIT; the engine and game resources come from your local installation.
+The current source version is **v1114**, for Windows x64. The adapter reference build is `27.0.1+2503222`. Tool code is licensed under MIT; the engine and game resources come from your local installation.
 
 Original engine code and a career match's complete conditions are separate considerations. This tool standardizes starting states; inputs, random states and in-match interventions affect results. Evidence and validation scope are described in [Simulation Fidelity](docs/SIMULATION_FIDELITY.md).
 
@@ -190,6 +179,6 @@ The interface follows the Windows display language. Simplified Chinese and Engli
 
 The Windows EXE supports both Steam and Epic and selects the native adapter from the installed game. The Tauri desktop interface uses standard I/O pipes for backend requests.
 
-Supports Steam FM27 `27.1.0+2505117`. Start a new batch with this build. To resume an unfinished batch, retain the original tool and game build used for that batch.
+Supports the November 12 Steam hotfix (`27.0.1+2503222`). Start a new batch with this build. To resume an unfinished batch, retain the original tool and game build used for that batch.
 
 A Manchester United save re-saved on this build was imported and used for 38 native matches with tactical execution enabled. Startup failures now report the diagnostic log path.

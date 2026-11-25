@@ -1,12 +1,21 @@
+import io
 import struct
 import sys
 import unittest
+from contextlib import nullcontext
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 import desktop_save_compat
 from desktop_save_setpieces import routine_header_bytes
+from desktop_save_multiplayer import read_career_summary
+from fmsave import _container, _context
+from fmsave._errors import CorruptSaveError
+from fmsave._layouts import SaveSummaryLayout, find_layout
 from fmsave.readers import tactics
 
 
@@ -15,6 +24,54 @@ class SaveLayoutVariantTests(unittest.TestCase):
     def setUpClass(cls):
         desktop_save_compat.install()
         cls.layout = tactics.find_tactics_layout(26, '27.0.1+2503222')
+
+    def test_counted_career_summary_reads_clock_after_all_managers(self):
+        build = '27.1.0+2505117'
+        layout = find_layout(SaveSummaryLayout, 'save_game_summary', 31, build).layout
+
+        def field(value):
+            encoded = value.encode('utf8')
+            return struct.pack('<I', len(encoded)) + encoded
+
+        header = bytes(layout.structured_strings_offset) + field('setup') + field(build)
+        header += struct.pack('<I', 1) + field('Division')
+        header += bytes(layout.manager_header_bytes - 1) + b'\x03'
+        rows = (
+            field('Same Name') + field('Newcastle') + struct.pack('<I', 688)
+            + field('Same Name') + field('Hertha') + struct.pack('<I', 2247)
+            + field('Another Name') + field('Aberdeen') + struct.pack('<I', 1536)
+        )
+        packed_date = struct.pack('<HH', (25 << 9) | 210, 2026)
+        result = read_career_summary(header + rows + packed_date, layout, build)
+        self.assertEqual(result.clock, (date(2026, 7, 29), 25))
+        self.assertEqual(result.managers, ((688, 'Same Name'), (2247, 'Same Name'), (1536, 'Another Name')))
+        with self.assertRaises(tactics.ReaderCheckError):
+            read_career_summary(header + rows[:-1], layout, build)
+        self.assertIsNone(read_career_summary(header[:-1] + b'\x01' + rows, layout, build))
+
+    def test_fm27_calendar_budget_does_not_count_unread_directory_entries(self):
+        region = _context.SPAN_REGION
+        frame = _container.zstd.compress(bytes(64))
+        entry = _container.DirectoryEntry('unread', '.dat', 0, 1, 64, (0, 0))
+        index = _container.ContainerIndex(Path('test.fm'), _container.Fingerprint(0, 0, ''),
+                                          'test.fm', 0, (entry,), {}, {},
+                                          _container.ContainerLimits(80, 80))
+        info = SimpleNamespace(game='FM27', build='27.1.0+2505117',
+                               game_date=date(2029, 2, 6), file_name=index.file_name)
+        context = SimpleNamespace(info=info, _container_index=index)
+        index.regions[region] = _container.Region(region, 0, len(frame), None)
+        with patch.object(_container, 'open_verified', side_effect=lambda _: nullcontext(io.BytesIO(frame))):
+            with self.assertRaisesRegex(CorruptSaveError, 'total decompression cap'):
+                list(_container.read_region_frames(index, region))
+            records = _context.SaveContext._build_span_records(context)
+            self.assertEqual((records.span_bytes, records.frame_count), (64, 1))
+        index.regions[region] = _container.Region(region, 0, len(frame) * 2, None)
+        with (
+            patch.object(_container, 'open_verified', side_effect=lambda _: nullcontext(io.BytesIO(frame * 2))),
+            patch.object(_container, 'changed_since_index', return_value=False),
+        ):
+            with self.assertRaisesRegex(CorruptSaveError, 'more than 16 bytes'):
+                _context.SaveContext._build_span_records(context)
 
     def selection(self, footer, following):
         layout = self.layout
@@ -58,7 +115,10 @@ class SaveLayoutVariantTests(unittest.TestCase):
 
     def test_steam_27_1_tactic_signature_and_set_piece_header(self):
         current = tactics.find_tactics_layout(26, '27.1.0+2505117')
+        updated = tactics.find_tactics_layout(26, '27.1.1+2511875')
         self.assertEqual(current.user_signature, bytes.fromhex('22 44 00 1b 01 00 00 00'))
+        self.assertEqual(updated.user_signature, bytes.fromhex('22 44 00 1b 01 00 01 00'))
+        self.assertEqual(updated.alternate_signature[-1], 2)
         self.assertEqual(self.layout.user_signature, bytes.fromhex('22 44 00 1b 00 01 00 00'))
         marker = current.routine_area_marker
         prefix = marker + bytes(578 - len(marker))
@@ -67,3 +127,4 @@ class SaveLayoutVariantTests(unittest.TestCase):
         for count in (0, 2):
             data = prefix + struct.pack('<H', count) + record * count + footer
             self.assertEqual(routine_header_bytes(data, 0, len(data), current), 587 + 26 * count)
+            self.assertEqual(routine_header_bytes(data, 0, len(data), updated), 587 + 26 * count)

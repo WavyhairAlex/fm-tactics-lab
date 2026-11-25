@@ -139,12 +139,13 @@ def read_recovery_source(source,folder,request):
     import desktop_save_compat
     desktop_save_compat.install()
     import fmsave
+    from desktop_save_multiplayer import managed_clubs
     wanted=json.loads(request.read_text(encoding='utf8'))
     before=source.stat()
     with source.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
     with fmsave.open(source) as save:
         if save.info.game!=wanted['game']:raise ValueError('来源不是同一代 Football Manager 存档')
-        people={(m.manager_staff_uid,m.manager_name) for m in save.managed_clubs()}
+        people={(m.manager_staff_uid,m.manager_name) for m in managed_clubs(save)}
         if not people.intersection(tuple(p) for p in wanted['human_identity']):raise ValueError('其他生涯的经理身份，不合并来源')
         anchors={fixture_anchor(plain(f)) for f in save.fixtures()};anchors.discard(None)
         common=len(anchors.intersection(tuple(a) for a in wanted['anchors']))
@@ -186,8 +187,6 @@ def main(source, folder):
     import desktop_save_compat
     desktop_save_compat.install()
     import fmsave
-    from fmsave._container import match_file_entries, read_directory_entry, read_section
-    from fmsave.readers.tactics import find_tactics_layout, _read_tactic_record
     before = source.stat()
     def progress(stage):
         write(folder/'progress.json', {'status': 'reading', 'stage': stage})
@@ -205,7 +204,8 @@ def main(source, folder):
             write(folder/'dataset.json', draft)
             write(folder/'progress.json', {'status':'complete','stage':'在线选秀数据读取完成'})
             return
-        managed = [plain(v) for v in save.managed_clubs()]
+        from desktop_save_multiplayer import managed_clubs
+        managed = [plain(v) for v in managed_clubs(save)]
         clubs = [{**{k:getattr(v,k) for k in ['uid','unique_id','name','short_name','nation_id']},'teams':plain(v.teams)} for v in save.clubs()]
         progress('读取人类经理球队属性与球员身份索引')
         from desktop_save_players import selected_players
@@ -245,54 +245,8 @@ def main(source, folder):
         except Exception as error:
             nations = {}
             warnings.append('国家索引读取失败：' + str(error))
-        try:
-            tactics = [plain(v) for v in save.tactics()]
-            selections = [plain(v) for v in save.selections()]
-            for selection in selections:
-                selection['source_uid']=local_to_native.get(selection['player_uid'])
-        except Exception as error:
-            tactics, selections = [], []
-            warnings.append('当前战术／首发读取失败：'+str(error))
         progress('提取存储战术原始数据')
-        section = read_section(save._container_index, 'tactics_man')
-        layout = find_tactics_layout(info.section_schemas.get('tactics_man'), info.build)
-        from desktop_save_setpieces import read_team_routines
-        from fmsave.readers import tactics as reader
-        from fmsave.readers.tactics import ReaderCheckError, UnsupportedGameError
-        setpieces = {}
-        stored_starts = reader._stored_block_starts(section, layout, source.name)
-        for club in clubs:
-            if club['uid'] not in wanted or not club['teams']:
-                continue
-            team_id = club['teams'][0]['team_id']
-            try:
-                routines = read_team_routines(section, team_id, layout, source.name, stored_starts)
-                if routines:
-                    setpieces[str(team_id)] = routines
-            except (ValueError, ReaderCheckError, UnsupportedGameError) as error:
-                warnings.append(f"{club['name']} 的定位球套路读取失败：{error}")
-        by_team = defaultdict(list)
-        for index, tactic in enumerate(tactics):
-            by_team[tactic['team_id']].append((index, tactic))
-        for team_id, start in reader._block_starts(section, by_team.keys(), layout).items():
-            end = next((offset for offset in stored_starts if offset > start), len(section))
-            selection = reader._read_selection_part(section, start, end, layout, source.name)
-            _, _, records_end = reader._read_routines(section, selection.end, end, layout)
-            cursor = selection.end
-            for index, tactic in sorted(by_team[team_id], key=lambda row: row[1]['index']):
-                offset, _ = reader._next_signature(section, cursor, records_end, layout)
-                if offset is None:
-                    break
-                cursor = offset + len(layout.user_signature)
-                following, _ = reader._next_signature(section, cursor, records_end, layout)
-                boundary = records_end if following is None else following
-                record = _read_tactic_record(section, offset, boundary, layout, source.name)
-                if (record.walk_complete and record.oop_index_permutation
-                        and record.name == tactic['name'] and plain(record.slots) == tactic['slots']):
-                    path = folder/f'tactic_{index}.bin'
-                    # The original reader determines and verifies the exact TAC end.
-                    path.write_bytes(section[offset:boundary])
-                    tactic['raw_plan'] = path.name
+        tactics, selections, setpieces = read_career_plans(save, folder, clubs, wanted, local_to_native, warnings)
         # Same-league coach presets do not consume historical match recordings.
         caches=[]
         from desktop_opponent_scope import identify
@@ -318,6 +272,90 @@ def main(source, folder):
     write(folder/'progress.json', {'status':'complete','stage':'存档数据读取完成'})
 
 
+def read_career_plans(save, folder, clubs, wanted, local_to_native, warnings):
+    from desktop_save_multiplayer import manager_tactics, read_tactics
+    from desktop_save_setpieces import read_team_routines
+    from fmsave.readers import tactics as reader
+    from fmsave.readers.tactics import ReaderCheckError, UnsupportedGameError
+
+    info = save.info
+    layout = reader.find_tactics_layout(info.section_schemas.get('tactics_man'), info.build)
+    career = manager_tactics(save)
+    plans, selections, setpieces = [], [], {}
+
+    def append(section, owners, tactics, picks):
+        rows = [plain(row) for row in tactics]
+        starts = reader._stored_block_starts(section, layout, info.file_name)
+        for club in owners:
+            if not club['teams']:
+                continue
+            team_id = club['teams'][0]['team_id']
+            try:
+                routines = read_team_routines(section, team_id, layout, info.file_name, starts)
+                if routines:
+                    setpieces[str(team_id)] = routines
+            except (ValueError, ReaderCheckError, UnsupportedGameError) as error:
+                warnings.append(f"{club['name']} 的定位球套路读取失败：{error}")
+        write_raw_plans(section, starts, layout, info.file_name, folder, len(plans), rows)
+        plans.extend(rows)
+        for pick in picks:
+            row = plain(pick)
+            row['source_uid'] = local_to_native.get(row['player_uid'])
+            selections.append(row)
+
+    if career is None:
+        try:
+            tactics, picks = save.tactics(), save.selections()
+        except Exception as error:
+            tactics, picks = (), ()
+            warnings.append('当前战术／首发读取失败：'+str(error))
+        with save._context.section('tactics_man') as section:
+            append(section, [club for club in clubs if club['uid'] in wanted], tactics, picks)
+    else:
+        by_uid = {club['uid']: club for club in clubs}
+        for group in career:
+            club = by_uid[group.club.club_uid]
+            try:
+                tactics, picks, selection_check = read_tactics(save, group, layout)
+            except (ValueError, ReaderCheckError, UnsupportedGameError) as error:
+                tactics, picks = (), ()
+                warnings.append(f"{club['name']} 的当前战术读取失败：{error}")
+            else:
+                try:
+                    save._enforce_checks((selection_check,))
+                except ReaderCheckError as error:
+                    picks = ()
+                    warnings.append(f"{club['name']} 的首发读取失败：{error}")
+            append(group.section, [club], tactics, picks)
+    return plans, selections, setpieces
+
+
+def write_raw_plans(section, starts, layout, filename, folder, first_index, tactics):
+    from fmsave.readers import tactics as reader
+
+    by_team = defaultdict(list)
+    for index, tactic in enumerate(tactics, first_index):
+        by_team[tactic['team_id']].append((index, tactic))
+    for team_id, start in reader._block_starts(section, by_team.keys(), layout).items():
+        end = next((offset for offset in starts if offset > start), len(section))
+        selection = reader._read_selection_part(section, start, end, layout, filename)
+        _, _, records_end = reader._read_routines(section, selection.end, end, layout)
+        cursor = selection.end
+        for index, tactic in sorted(by_team[team_id], key=lambda row: row[1]['index']):
+            offset, _ = reader._next_signature(section, cursor, records_end, layout)
+            if offset is None:
+                break
+            cursor = offset + len(layout.user_signature)
+            following, _ = reader._next_signature(section, cursor, records_end, layout)
+            boundary = records_end if following is None else following
+            record = reader._read_tactic_record(section, offset, boundary, layout, filename)
+            if (record.walk_complete and record.oop_index_permutation
+                    and record.name == tactic['name'] and plain(record.slots) == tactic['slots']):
+                path = folder/f'tactic_{index}.bin'
+                path.write_bytes(section[offset:boundary])
+                tactic['raw_plan'] = path.name
+
+
 def club_registry(source, folder):
     import desktop_save_compat
     desktop_save_compat.install()
@@ -338,10 +376,11 @@ def read_compact_index(source, folder):
     import fmsave
     from fmsave._container import read_section
     from desktop_save_compact import find_table
+    from desktop_save_multiplayer import managed_clubs
     before=source.stat()
     with source.open('rb')as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
     with fmsave.open(source)as save:
-        managed={m.club_uid for m in save.managed_clubs()}
+        managed={m.club_uid for m in managed_clubs(save)}
         clubs=save.clubs()
         owners=[t.team_id for c in clubs if c.uid in managed for t in c.teams]
         section=read_section(save._container_index,'tactics_man')

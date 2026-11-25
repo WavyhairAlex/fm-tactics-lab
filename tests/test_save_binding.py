@@ -18,6 +18,25 @@ def neutral():
     return dict(press=0, mark=0, tackle=0, foot=0, personal=False)
 
 
+class SaveImportRecoveryTests(unittest.TestCase):
+    def test_orphaned_import_reports_error_but_preserves_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            lib = saves.SaveLibrary(SimpleNamespace(RUNS=Path(folder) / 'runs'))
+            self.addCleanup(lib.pool.shutdown)
+            key = '1' * 16
+            target = lib.root / key
+            target.mkdir()
+            lib.write(target / 'progress.json', {'status': 'reading', 'stage': 'in progress'})
+            lib.write(target / 'selected_source.json', {'path': 'career.fm'})
+            lib.active = lib.importing = key
+            self.assertEqual(lib.status(key)['status'], 'reading')
+            lib.importing = None
+            # Other work on this save is not a running importer.
+            result = lib.status(key)
+            self.assertEqual((result['status'], result['source']), ('error', 'career.fm'))
+            self.assertEqual(lib.status()['status'], 'empty')
+
+
 class SaveBindingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

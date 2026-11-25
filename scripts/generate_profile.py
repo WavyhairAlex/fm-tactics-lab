@@ -11,6 +11,16 @@ from profile_header import header
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTERS = ('steam', 'steam_27_1_1', 'epic', 'epic_27_1', 'xbox_27_1_1')
 
+# Released adapters that every build must bundle. The Xbox PC / Game Pass adapter is
+# opt-in: it needs a reference DLL that a contributor may not own, so a missing
+# private engine only omits that adapter instead of failing the release build.
+REQUIRED_ADAPTERS = ('steam', 'steam_27_1_1', 'epic', 'epic_27_1')
+
+
+def adapter_built(platform):
+    _, engine = adapter_paths(platform)
+    return (engine / 'fm27_native/FM27Simulator.exe').is_file()
+
 
 def pe_sections(raw):
     if raw[:2] != b'MZ':

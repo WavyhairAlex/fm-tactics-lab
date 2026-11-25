@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 
 from prepare_private import ASSETS
-from generate_profile import ADAPTERS, adapter_paths
+from generate_profile import ADAPTERS, REQUIRED_ADAPTERS, adapter_built, adapter_paths
 from run import ROOT, check_inputs, stage_source
 
 
@@ -23,6 +23,9 @@ def main():
     args = parser.parse_args()
     engines = {}
     for platform in ADAPTERS:
+        if platform not in REQUIRED_ADAPTERS and not adapter_built(platform):
+            print('Optional adapter not built, skipping: ' + platform)
+            continue
         check_inputs(platform)
         _, engines[platform] = adapter_paths(platform)
     python = args.python_home.resolve()

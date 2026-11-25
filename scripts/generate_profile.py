@@ -9,7 +9,7 @@ import struct
 from profile_header import header
 
 ROOT = Path(__file__).resolve().parents[1]
-ADAPTERS = ('steam', 'steam_27_1_1', 'epic', 'epic_27_1')
+ADAPTERS = ('steam', 'steam_27_1_1', 'epic', 'epic_27_1', 'xbox_27_1_1')
 
 
 def pe_sections(raw):

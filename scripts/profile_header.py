@@ -3,10 +3,12 @@ import json
 
 def header(profile, *, digest_ranges=False):
     lines = ['#pragma once', 'static const char* compat_profile_id=' + json.dumps(profile['id']) + ';']
-    if profile.get('native_layout') in ('steam_27_1', 'steam_27_1_1'):
+    if profile.get('native_layout') in ('steam_27_1', 'steam_27_1_1', 'xbox_27_1_1'):
         lines.append('#define FM27_STEAM_27_1 1')
     if profile.get('native_layout') == 'steam_27_1_1':
         lines.append('#define FM27_STEAM_27_1_1 1')
+    if profile.get('native_layout') == 'xbox_27_1_1':
+        lines.append('#define FM27_XBOX_27_1_1 1')
     if digest_ranges:
         lines.append('#define FM27_COMPAT_DIGEST_RANGES')
         lines.append('static const char* epic_reference_sha256=' + json.dumps(profile['reference_sha256']) + ';')

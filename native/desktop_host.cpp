@@ -1091,12 +1091,15 @@ static int child(bool run_match){
     wcscpy_s(libs,(desktop_game_root.empty()?bundle/L"libs":desktop_game_root/L"fm_Data/Plugins/x86_64").c_str());
     wcscpy_s(image,(desktop_game_root.empty()?bundle/L"game_plugin.dll":desktop_game_root/L"fm_Data/Plugins/x86_64/game_plugin.dll").c_str());
     if(!known_image(image)){fprintf(log_file,"{\"event\":\"unsupported_engine_compatibility\"}\n");fflush(log_file);return 99;}
-    SetEnvironmentVariableW(L"SteamNoOverlayUI",L"1");
-    fprintf(log_file,"{\"event\":\"headless_steam_policy\",\"overlay_ui_disabled\":true}\n");fflush(log_file);
-    // Installation app manifest metadata, not a fabricated ownership response.
-    SetEnvironmentVariableW(L"SteamAppId",L"4530370");
-    SetEnvironmentVariableW(L"SteamGameId",L"4530370");
+    if constexpr(!native_layout::xbox_27_1_1){
+        SetEnvironmentVariableW(L"SteamNoOverlayUI",L"1");
+        fprintf(log_file,"{\"event\":\"headless_steam_policy\",\"overlay_ui_disabled\":true}\n");fflush(log_file);
+        // Installation app manifest metadata, not a fabricated ownership response.
+        SetEnvironmentVariableW(L"SteamAppId",L"4530370");
+        SetEnvironmentVariableW(L"SteamGameId",L"4530370");
+    }
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32|LOAD_LIBRARY_SEARCH_USER_DIRS);
+    if(!desktop_game_root.empty())AddDllDirectory(desktop_game_root.c_str());
     AddDllDirectory(libs);
     fprintf(log_file,"{\"event\":\"windows_load_started\"}\n");fflush(log_file);
     auto module=LoadLibraryExW(image,nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32|LOAD_LIBRARY_SEARCH_USER_DIRS);

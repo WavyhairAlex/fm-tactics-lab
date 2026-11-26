@@ -41,9 +41,10 @@ def discover_game(native):
         pass
     program_data = Path(os.environ.get('ProgramData', r'C:\ProgramData'))
     epic = list(epic_installations(program_data/'Epic/EpicGamesLauncher/Data/Manifests'))
+    xbox = [Path(f'{letter}:/XboxGames/Football Manager 27/Content') for letter in 'CDEFGHIJKLMNOPQRSTUVWXYZ']
     candidates.extend(Path(f'{letter}:/SteamLibrary')/relative for letter in 'CDEFGHIJKLMNOPQRSTUVWXYZ')
     first = ''
-    for path in dict.fromkeys([*candidates, *epic]):
+    for path in dict.fromkeys([*candidates, *epic, *xbox]):
         plugin = path/GAME_PLUGIN
         if not plugin.is_file():
             continue

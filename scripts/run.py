@@ -56,7 +56,7 @@ def main():
             shutil.copy2(native / name, adapter / name)
     source = ROOT / 'build/source'
     stage_source(source)
-    data = ROOT / ('data-xbox' if args.platform.startswith('xbox') else ('data-epic' if args.platform.startswith('epic') else 'data'))
+    data = ROOT / ('data-epic' if args.platform.startswith('epic') else 'data')
     data.mkdir(exist_ok=True)
     env = {key: value for key, value in os.environ.items() if not key.startswith('FM27_')}
     env.update(FM27_ENGINE_ROOT=str(engine), FM27_GAME_ROOT=str(args.game_root.resolve()),

@@ -138,9 +138,7 @@ static void execution_install(unsigned char* match){
    for(int value:execution_components[side])if(value>=0)desktop_finish_and_exit(244);
   }else if(c[Understanding]<0||c[BuyIn]<0||c[Opposition]<0)desktop_finish_and_exit(244);
  }
- constexpr const char* execution_image=native_layout::xbox_27_1_1?
-    "814f0190ea241710e0780bbff6589cc8137e6837c48cc25f868b1b676008242a":
-    native_layout::steam_27_1_1?
+ constexpr const char* execution_image=native_layout::steam_27_1_1?
     "4781439443abfb4b8197de03f1bed5b76063c862d014cfe01c5f54d83c9875ee":
     native_layout::steam_27_1?
         "d12202dd01c3911d4c4e55e778f37b2251ffb10f9cf8cecc3b9ec08ece622c6b":
@@ -153,9 +151,7 @@ static void execution_install(unsigned char* match){
  *(unsigned*)(match+0xa3a)=version;
  bool reused=execution_original_sample!=nullptr;
  if(!reused){
-  execution_original_build=(ExecutionBuild)execution_redirect(
-      0x71370,(void*)execution_build,native_layout::execution_build_stack&0xff,
-      native_layout::execution_build_stack>>8);
+  execution_original_build=(ExecutionBuild)execution_redirect(0x71370,(void*)execution_build,0x38,1);
   execution_original_sample=(ExecutionSample)execution_redirect(
       0x465b0,(void*)execution_sample,native_layout::execution_sample_stack&0xff,
       native_layout::execution_sample_stack>>8);

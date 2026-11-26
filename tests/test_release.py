@@ -92,7 +92,7 @@ class ReleaseTests(unittest.TestCase):
             root = Path(folder)
             native = root / 'fm27_native'
             for variant, platform in (('epic', 'epic'), ('epic_27_1', 'epic'),
-                                      ('steam_27_1_1', 'steam'), ('xbox_27_1_1', 'xbox')):
+                                      ('steam_27_1_1', 'steam')):
                 profile = ROOT / 'native' / f'{variant}_profile_metadata.json'
                 adapter = native / variant
                 adapter.mkdir(parents=True)
@@ -101,12 +101,6 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(adapter_for(native, digest), (platform, adapter))
                 status = {'adapter': platform, 'adapter_variant': variant}
                 self.assertEqual(host_for(root, status), adapter / 'FM27Simulator.exe')
-            standalone = root / 'standalone_xbox'
-            standalone.mkdir(parents=True)
-            xbox_profile = ROOT / 'native/xbox_27_1_1_profile_metadata.json'
-            (standalone / 'engine_compat_profile.json').write_bytes(xbox_profile.read_bytes())
-            xbox_digest = json.loads(xbox_profile.read_text(encoding='utf8'))['reference_sha256']
-            self.assertEqual(adapter_for(standalone, xbox_digest), ('xbox', standalone))
             self.assertEqual(adapter_for(native, '0' * 64), ('steam', native))
             self.assertEqual(host_for(root, {'adapter': 'epic'}), native / 'epic/FM27Simulator.exe')
 

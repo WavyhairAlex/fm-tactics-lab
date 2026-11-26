@@ -3,7 +3,7 @@
 ## Requirements
 
 - Windows x64, full CPython 3.12 x64, MSVC C++17, the Windows SDK, Rust MSVC toolchain and WebView2.
-- A local FM27 installation. References include [Steam 27.1.1](../native/steam_27_1_1_adapter_version.json), [Steam 27.1.0](../native/adapter_version.json), [Epic 27.1.0](../native/epic_27_1_adapter_version.json), [Epic 27.0.1](../native/epic_adapter_version.json), and [Xbox PC / Game Pass 27.1.1](../native/xbox_27_1_1_adapter_version.json).
+- A local FM27 installation. References include [Steam 27.1.1](../native/steam_27_1_1_adapter_version.json), [Steam 27.1.0](../native/adapter_version.json), [Epic 27.1.0](../native/epic_27_1_adapter_version.json), and [Epic 27.0.1](../native/epic_adapter_version.json).
 - A verified v1108.5 EXE from this repository's Releases, used to supply the matching initial inputs.
 
 Install the save reader and its compression dependency from requirements.txt in the build environment.
@@ -30,7 +30,7 @@ In an **x64 Native Tools Command Prompt for Visual Studio**:
 
 The public repository contains range metadata and digests. The script reconstructs comparison bytes from the exact reference DLL on your machine, verifies every range, then compiles the checked-in C++ host. Generated function bytes remain in ignored local outputs.
 
-Use `--platform steam` for Steam 27.1.0, `--platform epic_27_1` for Epic 27.1.0, `--platform epic` for Epic 27.0.1, and `--platform xbox_27_1_1` for Xbox PC / Game Pass 27.1.1 (`...\Football Manager 27\Content`). The same option selects the adapter when using `scripts/run.py`.
+Use `--platform steam` for Steam 27.1.0, `--platform epic_27_1` for Epic 27.1.0, and `--platform epic` for Epic 27.0.1. The same option selects the adapter when using `scripts/run.py`.
 
 Generate the Steam 27.1 personal instruction rules for the local catalog before running or packaging the desktop app.
 

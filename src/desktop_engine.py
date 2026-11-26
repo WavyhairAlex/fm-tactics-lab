@@ -10,7 +10,7 @@ import subprocess
 from xml.etree import ElementTree
 
 LEASES = []
-NATIVE_ADAPTER_VARIANTS = {'steam_27_1_1': 'steam', 'epic_27_1': 'epic', 'epic': 'epic', 'xbox_27_1_1': 'xbox'}
+NATIVE_ADAPTER_VARIANTS = {'steam_27_1_1': 'steam', 'epic_27_1': 'epic', 'epic': 'epic'}
 
 
 def close_leases():
@@ -34,11 +34,6 @@ def adapter_for(native, dll_sha256):
         adapter = native/variant
         if reference_matches(adapter, dll_sha256):
             return platform, adapter
-    if reference_matches(native, dll_sha256):
-        profile = json.loads((native/'engine_compat_profile.json').read_text(encoding='utf8'))
-        layout = profile.get('native_layout')
-        if layout in NATIVE_ADAPTER_VARIANTS:
-            return NATIVE_ADAPTER_VARIANTS[layout], native
     return 'steam', native
 
 
@@ -91,36 +86,23 @@ def initialize(root, installation=None):
         os.environ['FM27_GAME_ROOT'] = str(installation)
     native = root / 'fm27_native'
     game = Path(os.environ['FM27_GAME_ROOT']) if os.environ.get('FM27_GAME_ROOT') else native
-    if (os.environ.get('FM27_GAME_ROOT')
-            and not (game/'fm_Data/Plugins/x86_64/game_plugin.dll').is_file()
-            and (game/'Content/fm_Data/Plugins/x86_64/game_plugin.dll').is_file()):
-        game = game / 'Content'
-        os.environ['FM27_GAME_ROOT'] = str(game)
     plugins = game / 'fm_Data/Plugins/x86_64' if os.environ.get('FM27_GAME_ROOT') else native/'libs'
     dll = plugins/'game_plugin.dll' if os.environ.get('FM27_GAME_ROOT') else native/'game_plugin.dll'
     files = {'game_plugin.dll':dll, 'icudt65l.dat':game/'icudt65l.dat',
              'shared/data/simatch.fmf':game/'shared/data/simatch.fmf',
              'shared/data/simatchshared.fmf':game/'shared/data/simatchshared.fmf'}
-    is_xbox = dll.is_file() and xbox_installation(game, plugins)
-    dll_names = (['icuuc65.dll','icuin65.dll','icudt65.dll','PlayFabMultiplayerGDK.dll',
-                  'Party.dll','libHttpClient.GDK.dll','XCurl.dll']
-                 if is_xbox else
-                 ['icuuc65.dll','icuin65.dll','icudt65.dll','EOSSDK-Win64-Shipping.dll',
-                  'PartyWin.dll','PlayFabMultiplayerWin.dll','steam_api64.dll'])
-    for name in dll_names:
+    for name in ['icuuc65.dll','icuin65.dll','icudt65.dll','EOSSDK-Win64-Shipping.dll',
+                 'PartyWin.dll','PlayFabMultiplayerWin.dll','steam_api64.dll']:
         files['libs/'+name] = plugins/name
     status={'policy':'graded-adapter-compatibility-v2','compatible':False,'can_simulate':False,
             'disposition':'blocked','selected_game_root':str(game.resolve()),
             'actual_dll_sha256':None,'resource_fingerprint':None,
             'whole_file_sha_is_admission_gate':False,'whole_engine_behavior_equivalence_proven':False}
     try:
-        if is_xbox:
-            xbox_sha = sha(dll)
-            xbox_platform, _ = adapter_for(native, xbox_sha)
-            if xbox_platform != 'xbox':
-                return {**status, 'adapter':'xbox_pc', 'actual_dll_sha256':xbox_sha,
-                        'reason':'xbox_build_unverified',
-                        'message':'已识别 Xbox PC／Game Pass 安装。当前构建尚未通过原生比赛验证，请运行 XGP 诊断并提供日志。'}
+        if dll.is_file() and xbox_installation(game, plugins):
+            return {**status, 'adapter':'xbox_pc', 'actual_dll_sha256':sha(dll),
+                    'reason':'xbox_build_unverified',
+                    'message':'已识别 Xbox PC／Game Pass 安装。当前构建尚未通过原生比赛验证，请运行 XGP 诊断并提供日志。'}
         missing=[name for name,path in files.items() if not path.is_file()]
         if missing:
             return {**status,'reason':'missing_resources','missing_files':missing,
@@ -130,7 +112,7 @@ def initialize(root, installation=None):
         actual = sha(dll)
         platform, adapter = adapter_for(native, actual)
         status.update(adapter=platform, actual_dll_sha256=actual,
-                      whole_file_sha_is_admission_gate=platform in ('epic', 'xbox'))
+                      whole_file_sha_is_admission_gate=platform=='epic')
         if adapter != native:
             status['adapter_variant'] = adapter.name
         profile = json.loads((adapter/'engine_compat_profile.json').read_text(encoding='utf8'))
@@ -161,7 +143,7 @@ def initialize(root, installation=None):
             close_leases()
             return {**status,'reason':validation.get('reason'),'diagnostics':rows,
                     'message':'关键接口或布局不匹配：'+str(validation.get('reason'))+'，位置 '+hex(validation.get('rva',0))}
-        if exit_code != 0 or not validation or (platform in ('epic', 'xbox') and not validation.get('compatible')):
+        if exit_code != 0 or not validation or (platform == 'epic' and not validation.get('compatible')):
             close_leases()
             return {**status,'reason':'preflight_failed','diagnostics':rows,
                     'diagnostic_error':diagnostic_error,'preflight_exit_code':exit_code,

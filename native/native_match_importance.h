@@ -9,15 +9,9 @@ static constexpr unsigned char importance_caller_suffix[]={
     0x41,0x89,0xc0,0x89,0x86,(unsigned char)importance_result,(unsigned char)(importance_result>>8),0,0,
     0x0f,0xbf,0x86,(unsigned char)importance_condition,(unsigned char)(importance_condition>>8),0,0
 };
-#ifdef FM27_XBOX_27_1_1
-static constexpr unsigned char importance_prologue[]={
-    0x56,0x57,0x53,0x48,0x89,0xc8,0x4c,0x8b,0x89,0x18,0x06,0,0,0x49,0x83,0xb9,0x78,0x06,0,0,0
-};
-#else
 static constexpr unsigned char importance_prologue[]={
     0x56,0x57,0x53,0x4c,0x8b,0x89,0x18,0x06,0,0,0x49,0x83,0xb9,0x78,0x06,0,0,0
 };
-#endif
 static constexpr size_t importance_return_offset=sizeof(importance_caller_prefix)+sizeof(int32_t);
 struct ImportanceLocation {uint32_t entry=0, return_address=0;};
 static ImportanceLocation importance_location;
@@ -30,8 +24,8 @@ static bool locate_match_importance(const fs::path& path){
     if(!image.open(path))return false;
     ImportanceLocation found;
     if constexpr(native_layout::steam_27_1){
-        constexpr unsigned entry=native_layout::xbox_27_1_1?0xedad0:(native_layout::steam_27_1_1?0xfacc0:0xf2710);
-        constexpr unsigned return_address=native_layout::xbox_27_1_1?0xeb5a0:(native_layout::steam_27_1_1?0xf875a:0xf01aa);
+        constexpr unsigned entry=native_layout::steam_27_1_1?0xfacc0:0xf2710;
+        constexpr unsigned return_address=native_layout::steam_27_1_1?0xf875a:0xf01aa;
         unsigned char prologue[sizeof(importance_prologue)]={}, suffix[sizeof(importance_caller_suffix)]={};
         unsigned char prefix[sizeof(importance_caller_prefix)]={};
         int32_t displacement=0;

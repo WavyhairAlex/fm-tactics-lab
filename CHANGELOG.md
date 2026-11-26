@@ -1,5 +1,10 @@
 # Changelog
 
+## v1126 · 2026-11-26
+
+- 统一 Windows EXE 新增 Xbox PC / Game Pass 版 FM27 `27.1.1+2511875` 的原版引擎适配。支持自动发现常见 Xbox 安装目录，手动选择时可使用游戏的 `Content` 目录。感谢 [seva324](https://github.com/seva324) 的 [PR #24](https://github.com/lqf0624/fm-tactics-lab/pull/24)。
+- Add the Xbox PC / Game Pass FM27 `27.1.1+2511875` native adapter to the unified Windows EXE. The app detects standard Xbox installation paths and accepts the game's `Content` folder in Engine Settings. Thanks to [seva324](https://github.com/seva324) for [PR #24](https://github.com/lqf0624/fm-tactics-lab/pull/24).
+
 ## v1125 · 2026-11-25
 
 - 适配 Steam FM27 `27.1.1+2511875` 的存档和原版比赛引擎。统一 Windows EXE 保留 Steam 27.1.0 和现有 Epic 适配，后端继续使用管道。

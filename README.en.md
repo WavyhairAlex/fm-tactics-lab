@@ -54,6 +54,10 @@ The latest verified Steam build is `27.1.1+2511875`. For Steam, open the client 
 
 The EXE includes its Python runtime. Players do not need Python or a compiler. The interface follows the Windows display language and supports Chinese and English. Source setup is described in the [developer guide](docs/DEVELOPMENT.md).
 
+## v1126
+
+The unified Windows EXE now supports the original match engine from Xbox PC / Game Pass FM27 `27.1.1+2511875`. If Xbox auto-discovery misses your installation, select the game's `Content` folder in Engine Settings. Thanks to [seva324](https://github.com/seva324) for contributing and testing the adapter. [v1126 release notes](https://github.com/lqf0624/fm-tactics-lab/releases/tag/v1126)
+
 ## v1125
 
 - Support Steam FM27 `27.1.1+2511875` saves and the original match engine. The unified EXE retains the Steam 27.1.0 and existing Epic adapters.

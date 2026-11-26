@@ -74,7 +74,7 @@ def generate(dll, platform='steam'):
     prefix, engine = adapter_paths(platform)
     metadata = json.loads((ROOT / 'native' / (prefix + 'profile_metadata.json')).read_text(encoding='utf8'))
     profile = restore_profile(metadata, Path(dll).read_bytes())
-    digest_ranges = platform.startswith('epic')
+    digest_ranges = platform.startswith(('epic', 'xbox'))
     if digest_ranges:
         profile = metadata
     native = ROOT / 'private' / (prefix + 'native')

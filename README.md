@@ -51,6 +51,10 @@
 
 相同输入和种子可用于复查实验；战术对比会让两套方案使用同一组种子分别运行。多场结果帮助你观察调整带来的平均变化，减少单场偶然性的影响。
 
+## v1126
+
+统一 Windows EXE 新增 Xbox PC / Game Pass 版 FM27 `27.1.1+2511875` 的原版比赛引擎适配。若未自动找到 Xbox 安装，请在引擎设置里选择游戏的 `Content` 目录。感谢 [seva324](https://github.com/seva324) 提供适配与实机验证。[v1126 更新说明](https://github.com/lqf0624/fm-tactics-lab/releases/tag/v1126)
+
 ## v1125
 
 - 适配 Steam FM27 `27.1.1+2511875` 的存档和原版引擎。统一 EXE 保留 Steam 27.1.0 和已有 Epic 适配。

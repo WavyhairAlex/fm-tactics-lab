@@ -1,0 +1,14 @@
+{
+  "version": "27.1.1+2511875-xbox",
+  "reference_dll_sha256": "814f0190ea241710e0780bbff6589cc8137e6837c48cc25f868b1b676008242a",
+  "mapped_references": 106,
+  "unmapped_references": [
+    "0xfb2580",
+    "0x4a7c550"
+  ],
+  "tactic_version": "1b010000",
+  "native_worker_protocol": 2,
+  "session_scope": "remaining_batch_lane",
+  "execution_context_reset": true,
+  "max_worker_jobs": 1000000
+}
